@@ -1,20 +1,32 @@
-const TETRIMINOS = ["I", "O", "T", "S", "Z", "J", "L"];
+const TETRIMINOS = [
+	"I",
+	"O",
+	"T",
+	"S",
+	"Z",
+	"J",
+	"L"
+];
 
 class Game {
-	constructor (roomName) {
+	constructor(roomName) {
 		this.roomName = roomName;
 		this.players = new Map();
 		this.hostId = null;
 		this.started = false;
-
 		this.pieces = [];
 	}
 
 	addPlayer(player) {
-		this.players.set(player.socketId, player);
+		this.players.set(
+			player.socketId,
+			player
+		);
 
 		if (this.hostId === null) {
-			this.hostId = player.socketId;
+			this.hostId =
+				player.socketId;
+
 			player.isHost = true;
 		}
 	}
@@ -22,50 +34,83 @@ class Game {
 	removePlayer(socketId) {
 		this.players.delete(socketId);
 
-		if (this.hostId === socketId)
+		if (this.hostId === socketId) {
 			this.assignNewHost();
+		}
 	}
 
 	assignNewHost() {
-		const nextPlayer = this.players.values().next().value;
+		const nextPlayer =
+			this.players.values().next().value;
 
 		if (!nextPlayer) {
 			this.hostId = null;
 			return;
 		}
 
-		this.hostId = nextPlayer.socketId;
+		this.hostId =
+			nextPlayer.socketId;
+
 		nextPlayer.isHost = true;
 	}
 
 	getPlayers() {
-		return Array.from(this.players.values());
+		return Array.from(
+			this.players.values()
+		);
 	}
 
 	generateBag() {
-		const bag = [...TETRIMINOS];
+		const bag = [
+			...TETRIMINOS
+		];
 
-		for (let i = bag.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
+		for (
+			let i = bag.length - 1;
+			i > 0;
+			i--
+		) {
+			const j = Math.floor(
+				Math.random() *
+				(i + 1)
+			);
 
-			[bag[i], bag[j]] = [bag[j], bag[i]];
+			[
+				bag[i],
+				bag[j]
+			] = [
+				bag[j],
+				bag[i]
+			];
 		}
 
 		return bag;
 	}
 
-	generateSequence(bagCount = 20) {
+	generateSequence(
+		bagCount = 20
+	) {
 		this.pieces = [];
 
-		for (let i = 0; i < bagCount; i++) {
-			const bag = this.generateBag();
+		for (
+			let i = 0;
+			i < bagCount;
+			i++
+		) {
+			const bag =
+				this.generateBag();
 
-			this.pieces.push(...bag);
+			this.pieces.push(
+				...bag
+			);
 		}
 	}
 
-	getNextPieces(player) {
-		const piece = this.pieces[player.pieceIndex];
+	getNextPiece(player) {
+		const piece =
+			this.pieces[
+				player.pieceIndex
+			];
 
 		if (!piece)
 			return null;
@@ -73,6 +118,14 @@ class Game {
 		player.pieceIndex++;
 
 		return piece;
+	}
+
+	peekNextPiece(player) {
+		return (
+			this.pieces[
+				player.pieceIndex
+			] ?? null
+		);
 	}
 }
 

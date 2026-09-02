@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import socket from "../../socket/socket.js";
 
 import Board from "../../components/Board/Board.jsx";
+import PiecePreview from "../../components/PiecePreview/PiecePreview.jsx";
 
 import {
 	createBoard,
@@ -19,23 +20,34 @@ import {
 } from "../../game/movement.js";
 
 import { hardDrop } from "../../game/drop.js";
-
 import { rotatePiece } from "../../game/rotation.js";
-
 import { hasCollision } from "../../game/collision.js";
-
 import { clearLines } from "../../game/lines.js";
-
 import { calculateScore } from "../../game/scoring.js";
 
 function Game() {
 	const { room, player } = useParams();
 
-	const [board, setBoard] = useState(() => createBoard());
-	const [roomState, setRoomState] = useState(null);
-	const [error, setError] = useState(null);
-	const [currentPiece, setCurrentPiece] = useState(null);
-	const [score, setScore] = useState(0);
+	const [board, setBoard] =
+		useState(() => createBoard());
+
+	const [roomState, setRoomState] =
+		useState(null);
+
+	const [error, setError] =
+		useState(null);
+
+	const [currentPiece, setCurrentPiece] =
+		useState(null);
+
+	const [nextPiece, setNextPiece] =
+		useState(null);
+
+	const [score, setScore] =
+		useState(0);
+
+	const [gameOver, setGameOver] =
+		useState(false);
 
 	useEffect(() => {
 		const joinRoom = () => {
@@ -72,20 +84,30 @@ function Game() {
 
 		const onNextPiece = (data) => {
 			console.log(
+				"Current piece:",
+				data.piece,
 				"Next piece:",
-				data.piece
+				data.nextPiece
 			);
 
-			const piece = createPiece(
-				data.piece
-			);
+			const piece =
+				createPiece(data.piece);
 
 			setCurrentPiece(piece);
+
+			if (data.nextPiece) {
+				setNextPiece(
+					createPiece(
+						data.nextPiece
+					)
+				);
+			} else {
+				setNextPiece(null);
+			}
 		};
 
-		if (socket.connected) {
+		if (socket.connected)
 			joinRoom();
-		}
 
 		socket.on(
 			"connect",
@@ -148,7 +170,37 @@ function Game() {
 	useEffect(() => {
 		if (
 			!roomState?.started ||
-			!currentPiece
+			!currentPiece ||
+			gameOver
+		) {
+			return;
+		}
+
+		if (
+			hasCollision(
+				board,
+				currentPiece
+			)
+		) {
+			console.log(
+				"GAME OVER"
+			);
+
+			setGameOver(true);
+			setCurrentPiece(null);
+		}
+	}, [
+		roomState?.started,
+		currentPiece,
+		board,
+		gameOver
+	]);
+
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!currentPiece ||
+			gameOver
 		) {
 			return;
 		}
@@ -158,75 +210,85 @@ function Game() {
 				case "ArrowLeft":
 					event.preventDefault();
 
-					setCurrentPiece((piece) => {
-						if (!piece)
-							return piece;
+					setCurrentPiece(
+						(piece) => {
+							if (!piece)
+								return piece;
 
-						return moveLeft(
-							board,
-							piece
-						);
-					});
+							return moveLeft(
+								board,
+								piece
+							);
+						}
+					);
 
 					break;
 
 				case "ArrowRight":
 					event.preventDefault();
 
-					setCurrentPiece((piece) => {
-						if (!piece)
-							return piece;
+					setCurrentPiece(
+						(piece) => {
+							if (!piece)
+								return piece;
 
-						return moveRight(
-							board,
-							piece
-						);
-					});
+							return moveRight(
+								board,
+								piece
+							);
+						}
+					);
 
 					break;
 
 				case "ArrowDown":
 					event.preventDefault();
 
-					setCurrentPiece((piece) => {
-						if (!piece)
-							return piece;
+					setCurrentPiece(
+						(piece) => {
+							if (!piece)
+								return piece;
 
-						return moveDown(
-							board,
-							piece
-						);
-					});
+							return moveDown(
+								board,
+								piece
+							);
+						}
+					);
 
 					break;
 
 				case "ArrowUp":
 					event.preventDefault();
 
-					setCurrentPiece((piece) => {
-						if (!piece)
-							return piece;
+					setCurrentPiece(
+						(piece) => {
+							if (!piece)
+								return piece;
 
-						return rotatePiece(
-							board,
-							piece
-						);
-					});
+							return rotatePiece(
+								board,
+								piece
+							);
+						}
+					);
 
 					break;
 
 				case "Space":
 					event.preventDefault();
 
-					setCurrentPiece((piece) => {
-						if (!piece)
-							return piece;
+					setCurrentPiece(
+						(piece) => {
+							if (!piece)
+								return piece;
 
-						return hardDrop(
-							board,
-							piece
-						);
-					});
+							return hardDrop(
+								board,
+								piece
+							);
+						}
+					);
 
 					break;
 
@@ -249,13 +311,15 @@ function Game() {
 	}, [
 		roomState?.started,
 		currentPiece,
-		board
+		board,
+		gameOver
 	]);
 
 	useEffect(() => {
 		if (
 			!roomState?.started ||
-			!currentPiece
+			!currentPiece ||
+			gameOver
 		) {
 			return;
 		}
@@ -267,19 +331,23 @@ function Game() {
 						if (!piece)
 							return piece;
 
-						const nextPiece = {
+						const nextPosition = {
 							...piece,
-							y: piece.y + 1
+							y:
+								piece.y +
+								1
 						};
 
 						if (
 							hasCollision(
 								board,
-								nextPiece
+								nextPosition
 							)
 						) {
 							setBoard(
-								(currentBoard) => {
+								(
+									currentBoard
+								) => {
 									const lockedBoard =
 										lockPiece(
 											currentBoard,
@@ -333,7 +401,7 @@ function Game() {
 							return null;
 						}
 
-						return nextPiece;
+						return nextPosition;
 					}
 				);
 			}, 700);
@@ -347,7 +415,8 @@ function Game() {
 		roomState?.started,
 		currentPiece,
 		board,
-		room
+		room,
+		gameOver
 	]);
 
 	const currentPlayer =
@@ -386,7 +455,9 @@ function Game() {
 					<div className="panel-header">
 						<span className="panel-dot"></span>
 
-						<h2>Players</h2>
+						<h2>
+							Players
+						</h2>
 					</div>
 
 					<div className="current-player">
@@ -445,8 +516,7 @@ function Game() {
 						</ul>
 					) : (
 						<p className="muted">
-							Loading
-							players...
+							Loading players...
 						</p>
 					)}
 
@@ -467,27 +537,48 @@ function Game() {
 					<div className="game-status">
 						<span
 							className={
-								roomState?.started
-									? "status-light online"
-									: "status-light"
+								gameOver
+									? "status-light game-over-light"
+									: roomState?.started
+										? "status-light online"
+										: "status-light"
 							}
 						></span>
 
-						{roomState?.started
-							? "GAME IN PROGRESS"
-							: "WAITING FOR HOST"}
+						{gameOver
+							? "GAME OVER"
+							: roomState?.started
+								? "GAME IN PROGRESS"
+								: "WAITING FOR HOST"}
 					</div>
 
 					<div className="board-frame">
 						{roomState?.started ? (
-							<Board
-								board={
-									board
-								}
-								piece={
-									currentPiece
-								}
-							/>
+							<>
+								<Board
+									board={
+										board
+									}
+									piece={
+										currentPiece
+									}
+								/>
+
+								{gameOver && (
+									<div className="game-over-overlay">
+										<span className="game-over-title">
+											GAME OVER
+										</span>
+
+										<span className="game-over-score">
+											SCORE{" "}
+											{
+												score
+											}
+										</span>
+									</div>
+								)}
+							</>
 						) : (
 							<div className="waiting-board">
 								<span>
@@ -502,7 +593,9 @@ function Game() {
 					<div className="panel-header">
 						<span className="panel-dot"></span>
 
-						<h2>Game</h2>
+						<h2>
+							Game
+						</h2>
 					</div>
 
 					<div className="score-block">
@@ -520,15 +613,16 @@ function Game() {
 						</strong>
 					</div>
 
-					<div className="stat-row">
-						<span>
-							Current
+					<div className="current-piece-block">
+						<span className="current-piece-label">
+							NEXT
 						</span>
 
-						<strong>
-							{currentPiece?.type ??
-								"-"}
-						</strong>
+						<PiecePreview
+							piece={
+								nextPiece
+							}
+						/>
 					</div>
 
 					<div className="panel-divider"></div>
@@ -566,8 +660,7 @@ function Game() {
 
 						<div className="control-row">
 							<span>
-								Soft
-								drop
+								Soft drop
 							</span>
 
 							<kbd>
@@ -577,8 +670,7 @@ function Game() {
 
 						<div className="control-row">
 							<span>
-								Hard
-								drop
+								Hard drop
 							</span>
 
 							<kbd>

@@ -93,13 +93,15 @@ io.on("connection", (socket) => {
 		if (!player)
 			return ;
 
-		const piece = game.getNextPieces(player);
+		const piece = game.getNextPiece(player);
 
 		if (!piece)
 			return ;
+		const nextPiece = game.peekNextPiece(player);
 
 		socket.emit("piece:next", {
-			piece
+			piece,
+			nextPiece
 		});
 
 		console.log(
