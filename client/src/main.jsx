@@ -3,11 +3,12 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 
 import router from "./app/router.jsx";
+import "./styles/game.css";
 
 ReactDOM.createRoot(
-    document.getElementById("root")
+	document.getElementById("root")
 ).render(
-    <React.StrictMode>
-        <RouterProvider router={router} />
-    </React.StrictMode>
+	<React.StrictMode>
+		<RouterProvider router={router} />
+	</React.StrictMode>
 );
