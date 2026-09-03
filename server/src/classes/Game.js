@@ -10,48 +10,149 @@ const TETRIMINOS = [
 
 class Game {
 	constructor(roomName) {
-		this.roomName = roomName;
-		this.players = new Map();
-		this.hostId = null;
-		this.started = false;
-		this.pieces = [];
+		this.roomName =
+			roomName;
+
+		/*
+		 * Map:
+		 *
+		 * playerId -> Player
+		 */
+		this.players =
+			new Map();
+
+		/*
+		 * hostId is now a PLAYER ID,
+		 * not a socket ID.
+		 */
+		this.hostId =
+			null;
+
+		this.started =
+			false;
+
+		this.pieces =
+			[];
 	}
 
 	addPlayer(player) {
+		/*
+		 * Already registered:
+		 * update network connection.
+		 */
+		const existingPlayer =
+			this.players.get(
+				player.id
+			);
+
+		if (existingPlayer) {
+			existingPlayer.reconnect(
+				player.socketId
+			);
+
+			existingPlayer.name =
+				player.name;
+
+			return existingPlayer;
+		}
+
 		this.players.set(
-			player.socketId,
+			player.id,
 			player
 		);
 
-		if (this.hostId === null) {
+		/*
+		 * First player becomes host.
+		 */
+		if (
+			this.hostId === null
+		) {
 			this.hostId =
-				player.socketId;
+				player.id;
 
-			player.isHost = true;
+			player.isHost =
+				true;
 		}
+
+		return player;
 	}
 
-	removePlayer(socketId) {
-		this.players.delete(socketId);
+	removePlayer(playerId) {
+		const player =
+			this.players.get(
+				playerId
+			);
 
-		if (this.hostId === socketId) {
+		if (!player)
+			return;
+
+		const wasHost =
+			this.hostId ===
+			playerId;
+
+		this.players.delete(
+			playerId
+		);
+
+		if (wasHost) {
 			this.assignNewHost();
 		}
 	}
 
 	assignNewHost() {
+		/*
+		 * Reset host flags first.
+		 */
+		for (
+			const player
+			of this.players.values()
+		) {
+			player.isHost =
+				false;
+		}
+
 		const nextPlayer =
-			this.players.values().next().value;
+			this.players
+				.values()
+				.next()
+				.value;
 
 		if (!nextPlayer) {
-			this.hostId = null;
+			this.hostId =
+				null;
+
 			return;
 		}
 
 		this.hostId =
-			nextPlayer.socketId;
+			nextPlayer.id;
 
-		nextPlayer.isHost = true;
+		nextPlayer.isHost =
+			true;
+	}
+
+	getPlayer(playerId) {
+		return this.players.get(
+			playerId
+		);
+	}
+
+	findPlayerBySocket(
+		socketId
+	) {
+		for (
+			const player
+			of this.players.values()
+		) {
+			if (
+				player.socketId ===
+				socketId
+			) {
+				return player;
+			}
+		}
+
+		return null;
 	}
 
 	getPlayers() {
@@ -66,14 +167,16 @@ class Game {
 		];
 
 		for (
-			let i = bag.length - 1;
+			let i =
+				bag.length - 1;
 			i > 0;
 			i--
 		) {
-			const j = Math.floor(
-				Math.random() *
-				(i + 1)
-			);
+			const j =
+				Math.floor(
+					Math.random() *
+						(i + 1)
+				);
 
 			[
 				bag[i],

@@ -1,42 +1,125 @@
 import Cell from "../Cell/Cell.jsx";
 
-function Board({ board, piece }) {
-	const displayBoard = board.map((row) => [...row]);
+import {
+	getGhostPiece
+} from "../../game/drop.js";
 
-	if (piece) {
-		const shape = piece.shape;
+function Board({
+	board,
+	piece
+}) {
+	const displayBoard =
+		board.map(
+			(row) => [...row]
+		);
 
-		shape.forEach((row, y) => {
-			row.forEach((cell, x) => {
-				if (!cell)
-					return;
+	const ghostPiece =
+		piece
+			? getGhostPiece(
+				board,
+				piece
+			)
+			: null;
 
-				const boardY = piece.y + y;
-				const boardX = piece.x + x;
+	/*
+	 * Draw ghost piece first.
+	 */
+	if (ghostPiece) {
+		ghostPiece.shape.forEach(
+			(row, y) => {
+				row.forEach(
+					(cell, x) => {
+						if (!cell)
+							return;
 
-				if (
-					boardY >= 0 &&
-					boardY < displayBoard.length &&
-					boardX >= 0 &&
-					boardX < displayBoard[0].length
-				) {
-					displayBoard[boardY][boardX] = piece.type;
-				}
-			});
-		});
+						const boardY =
+							ghostPiece.y + y;
+
+						const boardX =
+							ghostPiece.x + x;
+
+						if (
+							boardY >= 0 &&
+							boardY <
+								displayBoard.length &&
+							boardX >= 0 &&
+							boardX <
+								displayBoard[0].length &&
+							displayBoard[
+								boardY
+							][
+								boardX
+							] === null
+						) {
+							displayBoard[
+								boardY
+							][
+								boardX
+							] =
+								`ghost-${ghostPiece.type}`;
+						}
+					}
+				);
+			}
+		);
 	}
 
+	/*
+	 * Draw current piece on top.
+	 */
+	if (piece) {
+		piece.shape.forEach(
+			(row, y) => {
+				row.forEach(
+					(cell, x) => {
+						if (!cell)
+							return;
 
-return (
-	<div className="board">
-		{displayBoard.flat().map((cell, index) => (
-			<Cell
-				key={index}
-				value={cell}
-			/>
-		))}
+						const boardY =
+							piece.y + y;
+
+						const boardX =
+							piece.x + x;
+
+						if (
+							boardY >= 0 &&
+							boardY <
+								displayBoard.length &&
+							boardX >= 0 &&
+							boardX <
+								displayBoard[0].length
+						) {
+							displayBoard[
+								boardY
+							][
+								boardX
+							] =
+								piece.type;
+						}
+					}
+				);
+			}
+		);
+	}
+
+	return (
+		<div className="board">
+			{displayBoard
+				.flat()
+				.map(
+					(cell, index) => (
+						<Cell
+							key={
+								index
+							}
+							value={
+								cell
+							}
+						/>
+					)
+				)}
 		</div>
-	)
+	);
 }
 
 export default Board;

@@ -19,3 +19,10 @@ export function hardDrop(board, piece) {
 
 	return droppedPiece;
 }
+
+export function getGhostPiece(board, piece) {
+	if (!piece)
+		return null;
+
+	return hardDrop(board, piece);
+}

@@ -1,11 +1,23 @@
 class Player {
-	constructor(socketId, name) {
+	constructor(
+		playerId,
+		socketId,
+		name
+	) {
+		this.id = playerId;
 		this.socketId = socketId;
 		this.name = name;
+
 		this.alive = true;
 		this.pieceIndex = 0;
 		this.spectrum = [];
+
 		this.isHost = false;
+	}
+
+	reconnect(socketId) {
+		this.socketId =
+			socketId;
 	}
 }
 

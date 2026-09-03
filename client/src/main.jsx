@@ -5,6 +5,7 @@ import { RouterProvider } from "react-router-dom";
 import router from "./app/router.jsx";
 import "./styles/game.css";
 import "./styles/home.css";
+import "./styles/ranking.css";
 
 ReactDOM.createRoot(
 	document.getElementById("root")
