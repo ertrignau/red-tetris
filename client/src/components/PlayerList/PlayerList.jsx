@@ -4,8 +4,18 @@ function PlayerList({
 	playerId,
 	error,
 	isHost,
-	onStart
+	onStart,
+	mode,
+	onModeChange
 }) {
+	const hasMultiplePlayers =
+		(roomState?.players?.length ?? 0) > 1;
+
+	const modeLabel =
+		mode === "points"
+			? "POINTS"
+			: "BATTLE ROYALE";
+
 	return (
 		<aside className="game-panel players-panel">
 			<div className="panel-header">
@@ -54,9 +64,7 @@ function PlayerList({
 								</div>
 
 								<span className="player-name">
-									{
-										roomPlayer.name
-									}
+									{roomPlayer.name}
 								</span>
 
 								{roomPlayer.isHost && (
@@ -72,6 +80,57 @@ function PlayerList({
 				<p className="muted">
 					Loading players...
 				</p>
+			)}
+
+			{hasMultiplePlayers && (
+				<div className="game-mode-block">
+					<span className="game-mode-label">
+						GAME MODE
+					</span>
+
+					{isHost &&
+					!roomState?.started ? (
+						<div className="game-mode-buttons">
+							<button
+								type="button"
+								className={
+									mode ===
+									"battle-royale"
+										? "mode-button mode-active"
+										: "mode-button"
+								}
+								onClick={() =>
+									onModeChange(
+										"battle-royale"
+									)
+								}
+							>
+								BATTLE ROYALE
+							</button>
+
+							<button
+								type="button"
+								className={
+									mode ===
+									"points"
+										? "mode-button mode-active"
+										: "mode-button"
+								}
+								onClick={() =>
+									onModeChange(
+										"points"
+									)
+								}
+							>
+								POINTS
+							</button>
+						</div>
+					) : (
+						<strong className="game-mode-value">
+							{modeLabel}
+						</strong>
+					)}
+				</div>
 			)}
 
 			{isHost &&

@@ -178,9 +178,21 @@ function useGameLoop({
 							);
 
 						setScore(
-							(currentScore) =>
-								currentScore +
-								gainedScore
+							(currentScore) => {
+								const nextScore =
+									currentScore +
+									gainedScore;
+
+								socket.emit(
+									"score:update",
+									{
+										room,
+										score:
+											nextScore
+									}
+								);
+								return nextScore;
+							}
 						);
 
 						console.log(

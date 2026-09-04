@@ -67,28 +67,23 @@ function Game() {
 		setRanking
 	] = useState([]);
 
-	/*
-	 * SOCKET / ROOM
-	 */
+	const [
+		finishedMode,
+		setFinishedMode
+	] = useState(null);
+
 	const {
 		playerId,
-
 		roomState,
-
 		error,
-
 		currentPiece,
 		setCurrentPiece,
-
 		nextPiece
 	} = useSocket(
 		room,
 		player
 	);
 
-	/*
-	 * CONTROLS
-	 */
 	useKeyboard({
 		started:
 			roomState?.started,
@@ -102,9 +97,6 @@ function Game() {
 		setCurrentPiece
 	});
 
-	/*
-	 * GAME LOOP
-	 */
 	useGameLoop({
 		room,
 
@@ -112,20 +104,20 @@ function Game() {
 			roomState?.started,
 
 		board,
+
 		setBoard,
 
 		currentPiece,
+
 		setCurrentPiece,
 
 		gameOver,
+
 		setGameOver,
 
 		setScore
 	});
 
-	/*
-	 * SPECTRUM
-	 */
 	const {
 		opponents
 	} = useMultiplayer({
@@ -137,12 +129,35 @@ function Game() {
 		board
 	});
 
-	/*
-	 * HOST
-	 */
 	const isHost =
 		roomState?.hostId ===
 		playerId;
+
+	/*
+	 * CHANGE GAME MODE
+	 */
+	const handleModeChange =
+		(mode) => {
+			if (
+				!isHost ||
+				roomState?.started ||
+				(
+					roomState?.players
+						?.length ??
+					0
+				) <= 1
+			) {
+				return;
+			}
+
+			socket.emit(
+				"game:mode",
+				{
+					room,
+					mode
+				}
+			);
+		};
 
 	/*
 	 * START
@@ -166,10 +181,6 @@ function Game() {
 
 	/*
 	 * FINAL RANKING
-	 *
-	 * Ranking appears only when
-	 * the server decides every
-	 * player finished.
 	 */
 	useEffect(() => {
 		let fadeTimeout =
@@ -182,9 +193,19 @@ function Game() {
 					data.ranking
 				);
 
+				console.log(
+					"FINISHED MODE:",
+					data.mode
+				);
+
 				setRanking(
 					data.ranking ??
 						[]
+				);
+
+				setFinishedMode(
+					data.mode ??
+						null
 				);
 
 				setIsFading(
@@ -309,6 +330,10 @@ function Game() {
 					[]
 				);
 
+				setFinishedMode(
+					null
+				);
+
 				setCurrentPiece(
 					null
 				);
@@ -370,6 +395,10 @@ function Game() {
 					onRestart={
 						handleRestart
 					}
+
+					mode={
+						finishedMode
+					}
 				/>
 			) : (
 				<div className="game-layout">
@@ -396,6 +425,14 @@ function Game() {
 
 						onStart={
 							handleStart
+						}
+
+						mode={
+							roomState?.mode
+						}
+
+						onModeChange={
+							handleModeChange
 						}
 					/>
 

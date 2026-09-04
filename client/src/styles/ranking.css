@@ -181,3 +181,49 @@
 		transform: translateY(0);
 	}
 }
+
+.ranking-mode {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	gap: 10px;
+
+	margin-bottom: 20px;
+}
+
+.ranking-mode-label {
+	color: #65748e;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 2px;
+}
+
+.ranking-mode-value {
+	padding: 5px 9px;
+
+	border: 1px solid
+		rgba(255, 64, 87, 0.35);
+	border-radius: 6px;
+
+	background:
+		rgba(255, 64, 87, 0.06);
+
+	color: #ff6477;
+
+	font-size: 10px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+}
+
+.ranking-score {
+	color: #ffffff;
+
+	font-size: 12px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+}

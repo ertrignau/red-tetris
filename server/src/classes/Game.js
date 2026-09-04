@@ -27,6 +27,24 @@ class Game {
 
 		this.eliminationOrder =
 			[];
+
+		/*
+		 * Mode selected by host
+		 * before the game starts.
+		 */
+		this.mode =
+			"battle-royale";
+
+		/*
+		 * Actual mode used by
+		 * the current round.
+		 *
+		 * "solo"
+		 * "battle-royale"
+		 * "points"
+		 */
+		this.activeMode =
+			null;
 	}
 
 	addPlayer(player) {
@@ -143,6 +161,22 @@ class Game {
 		);
 	}
 
+	setMode(mode) {
+		if (
+			mode !==
+				"battle-royale" &&
+			mode !==
+				"points"
+		) {
+			return false;
+		}
+
+		this.mode =
+			mode;
+
+		return true;
+	}
+
 	markPlayerDead(playerId) {
 		const player =
 			this.players.get(
@@ -177,7 +211,8 @@ class Game {
 		return (
 			this
 				.getAlivePlayers()
-				.length === 0
+				.length ===
+			0
 		);
 	}
 
@@ -193,6 +228,16 @@ class Game {
 					)
 			)
 			.filter(Boolean);
+	}
+
+	getPointsRanking() {
+		return [
+			...this.getPlayers()
+		].sort(
+			(a, b) =>
+				b.score -
+				a.score
+		);
 	}
 
 	generateBag() {
@@ -262,7 +307,8 @@ class Game {
 		return (
 			this.pieces[
 				player.pieceIndex
-			] ?? null
+			] ??
+			null
 		);
 	}
 }

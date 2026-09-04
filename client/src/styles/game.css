@@ -1032,3 +1032,113 @@ kbd {
 	background:
 		rgba(255, 64, 87, 0.55);
 }
+
+/* ================================= */
+/* GAME MODE */
+/* ================================= */
+
+.game-mode-block {
+	margin-top: 16px;
+	padding-top: 14px;
+
+	border-top: 1px solid #222c40;
+}
+
+.game-mode-label {
+	display: block;
+
+	margin-bottom: 9px;
+
+	color: #65748e;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1.5px;
+
+	text-transform: uppercase;
+}
+
+.game-mode-buttons {
+	display: flex;
+	flex-direction: column;
+
+	gap: 7px;
+}
+
+.mode-button {
+	width: 100%;
+
+	padding: 9px 10px;
+
+	border: 1px solid #29354c;
+	border-radius: 7px;
+
+	background: #0a0e17;
+
+	color: #738197;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	cursor: pointer;
+
+	transition:
+		border-color 0.15s ease,
+		background 0.15s ease,
+		color 0.15s ease,
+		transform 0.15s ease;
+}
+
+.mode-button:hover {
+	border-color: #3a4862;
+
+	color: #dce5f3;
+
+	transform: translateY(-1px);
+}
+
+.mode-active {
+	border-color:
+		rgba(255, 64, 87, 0.6);
+
+	background:
+		rgba(255, 64, 87, 0.08);
+
+	color: #ff6477;
+
+	box-shadow:
+		0 0 14px
+		rgba(255, 64, 87, 0.08);
+}
+
+.mode-active:hover {
+	border-color:
+		rgba(255, 64, 87, 0.8);
+
+	color: #ff7a8b;
+}
+
+.game-mode-value {
+	display: block;
+
+	padding: 9px 10px;
+
+	border: 1px solid
+		rgba(255, 64, 87, 0.3);
+	border-radius: 7px;
+
+	background:
+		rgba(255, 64, 87, 0.05);
+
+	color: #ff6477;
+
+	font-size: 10px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	text-align: center;
+}

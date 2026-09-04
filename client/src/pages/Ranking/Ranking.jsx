@@ -2,8 +2,16 @@ function Ranking({
 	players,
 	currentPlayerId,
 	isHost,
-	onRestart
+	onRestart,
+	mode
 }) {
+	const modeLabel =
+		mode === "battle-royale"
+			? "BATTLE ROYALE"
+			: mode === "points"
+				? "POINTS"
+				: "SOLO";
+
 	return (
 		<section className="ranking-screen">
 			<div className="ranking-card">
@@ -14,6 +22,16 @@ function Ranking({
 				<h2 className="ranking-title">
 					RANKING
 				</h2>
+
+				<div className="ranking-mode">
+					<span className="ranking-mode-label">
+						MODE
+					</span>
+
+					<strong className="ranking-mode-value">
+						{modeLabel}
+					</strong>
+				</div>
 
 				<div className="ranking-list">
 					{players.map(
@@ -34,10 +52,14 @@ function Ranking({
 								</span>
 
 								<span className="ranking-player">
-									{
-										player.name
-									}
+									{player.name}
 								</span>
+
+								{mode === "points" && (
+									<span className="ranking-score">
+										{player.score ?? 0}
+									</span>
+								)}
 
 								{player.isHost && (
 									<span className="ranking-host">

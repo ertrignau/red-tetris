@@ -72,6 +72,16 @@ function cancelDisconnect(
 function buildRoomState(
 	game
 ) {
+	const players =
+		game.getPlayers();
+
+	const mode =
+		game.started
+			? game.activeMode
+			: players.length > 1
+				? game.mode
+				: "solo";
+
 	return {
 		room:
 			game.roomName,
@@ -82,25 +92,28 @@ function buildRoomState(
 		hostId:
 			game.hostId,
 
+		mode,
+
 		players:
-			game
-				.getPlayers()
-				.map(
-					(player) => ({
-						playerId:
-							player.id,
+			players.map(
+				(player) => ({
+					playerId:
+						player.id,
 
-						name:
-							player.name,
+					name:
+						player.name,
 
-						isHost:
-							player.id ===
-							game.hostId,
+					isHost:
+						player.id ===
+						game.hostId,
 
-						alive:
-							player.alive
-					})
-				)
+					alive:
+						player.alive,
+
+					score:
+						player.score
+				})
+			)
 	};
 }
 
@@ -114,6 +127,68 @@ function emitRoomState(
 		buildRoomState(
 			game
 		)
+	);
+}
+
+function buildRanking(
+	game,
+	players
+) {
+	return players.map(
+		(
+			player,
+			index
+		) => ({
+			position:
+				index + 1,
+
+			playerId:
+				player.id,
+
+			name:
+				player.name,
+
+			score:
+				player.score,
+
+			isHost:
+				player.id ===
+				game.hostId
+		})
+	);
+}
+
+function finishGame(
+	game,
+	rankingPlayers
+) {
+	game.started =
+		false;
+
+	const ranking =
+		buildRanking(
+			game,
+			rankingPlayers
+		);
+
+	io.to(
+		game.roomName
+	).emit(
+		"game:finished",
+		{
+			mode:
+				game.activeMode,
+
+			ranking
+		}
+	);
+
+	emitRoomState(
+		game
+	);
+
+	console.log(
+		`Game ${game.roomName} finished (${game.activeMode})`
 	);
 }
 
@@ -167,10 +242,10 @@ io.on(
 					);
 
 				/*
-				 * New players cannot join
-				 * a game already running.
+				 * New player cannot join
+				 * an already running game.
 				 *
-				 * Existing players may
+				 * Existing player can
 				 * reconnect.
 				 */
 				if (
@@ -248,20 +323,25 @@ io.on(
 		);
 
 		/*
-		 * START
+		 * GAME MODE
+		 *
+		 * Only host can change it.
+		 * Only before game start.
+		 * Only useful with 2+ players.
 		 */
 		socket.on(
-			"game:start",
-			({ room }) => {
+			"game:mode",
+			({
+				room,
+				mode
+			}) => {
 				const game =
 					gameManager.getGame(
 						room
 					);
 
-				if (!game)
-					return;
-
 				if (
+					!game ||
 					game.started
 				) {
 					return;
@@ -275,9 +355,64 @@ io.on(
 				if (!player)
 					return;
 
-				/*
-				 * Host only.
-				 */
+				if (
+					game.hostId !==
+					player.id
+				) {
+					return;
+				}
+
+				if (
+					game.getPlayers()
+						.length <= 1
+				) {
+					return;
+				}
+
+				if (
+					!game.setMode(
+						mode
+					)
+				) {
+					return;
+				}
+
+				emitRoomState(
+					game
+				);
+
+				console.log(
+					`Game ${room} mode: ${mode}`
+				);
+			}
+		);
+
+		/*
+		 * START
+		 */
+		socket.on(
+			"game:start",
+			({ room }) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (!player)
+					return;
+
 				if (
 					game.hostId !==
 					player.id
@@ -286,6 +421,12 @@ io.on(
 				}
 
 				game.generateSequence();
+
+				game.activeMode =
+					game.getPlayers()
+						.length > 1
+						? game.mode
+						: "solo";
 
 				game.started =
 					true;
@@ -305,6 +446,9 @@ io.on(
 
 					roomPlayer.spectrum =
 						[];
+
+					roomPlayer.score =
+						0;
 				}
 
 				emitRoomState(
@@ -312,8 +456,62 @@ io.on(
 				);
 
 				console.log(
-					`Game ${room} started by ${player.name}`
+					`Game ${room} started by ${player.name} (${game.activeMode})`
 				);
+			}
+		);
+
+		/*
+		 * SCORE
+		 */
+		socket.on(
+			"score:update",
+			({
+				room,
+				score
+			}) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (
+					!player ||
+					!player.alive
+				) {
+					return;
+				}
+
+				const value =
+					Number(
+						score
+					);
+
+				if (
+					!Number.isFinite(
+						value
+					) ||
+					value < 0
+				) {
+					return;
+				}
+
+				player.score =
+					Math.floor(
+						value
+					);
 			}
 		);
 
@@ -409,7 +607,7 @@ io.on(
 				);
 
 				console.log(
-					`Player ${player.name} finished`
+					`Player ${player.name} finished with ${player.score} points`
 				);
 
 				emitRoomState(
@@ -417,10 +615,69 @@ io.on(
 				);
 
 				/*
-				 * Current mode:
+				 * BATTLE ROYALE
 				 *
-				 * wait for EVERY player
-				 * to finish before ranking.
+				 * Last alive wins
+				 * immediately.
+				 */
+				if (
+					game.activeMode ===
+					"battle-royale"
+				) {
+					const alivePlayers =
+						game.getAlivePlayers();
+
+					if (
+						alivePlayers.length >
+						1
+					) {
+						return;
+					}
+
+					const winner =
+						alivePlayers[0];
+
+					const rankingPlayers = [
+						...(winner
+							? [winner]
+							: []),
+
+						...game.getRanking()
+					];
+
+					finishGame(
+						game,
+						rankingPlayers
+					);
+
+					return;
+				}
+
+				/*
+				 * POINTS
+				 *
+				 * Everybody must finish.
+				 */
+				if (
+					game.activeMode ===
+					"points"
+				) {
+					if (
+						!game.isFinished()
+					) {
+						return;
+					}
+
+					finishGame(
+						game,
+						game.getPointsRanking()
+					);
+
+					return;
+				}
+
+				/*
+				 * SOLO
 				 */
 				if (
 					!game.isFinished()
@@ -428,57 +685,15 @@ io.on(
 					return;
 				}
 
-				game.started =
-					false;
-
-				const ranking =
-					game
-						.getRanking()
-						.map(
-							(
-								rankedPlayer,
-								index
-							) => ({
-								position:
-									index + 1,
-
-								playerId:
-									rankedPlayer.id,
-
-								name:
-									rankedPlayer.name,
-
-								isHost:
-									rankedPlayer.id ===
-									game.hostId
-							})
-						);
-
-				io.to(room).emit(
-					"game:finished",
-					{
-						ranking
-					}
-				);
-
-				emitRoomState(
-					game
-				);
-
-				console.log(
-					`Game ${room} finished`
+				finishGame(
+					game,
+					game.getRanking()
 				);
 			}
 		);
 
 		/*
 		 * PENALTY
-		 *
-		 * n cleared lines
-		 * => n - 1 penalty lines.
-		 *
-		 * Client sends count already
-		 * calculated.
 		 */
 		socket.on(
 			"penalty:send",
@@ -510,12 +725,6 @@ io.on(
 					return;
 				}
 
-				/*
-				 * Maximum possible from
-				 * a normal Tetris:
-				 *
-				 * 4 cleared => 3 penalties.
-				 */
 				const penaltyCount =
 					Math.max(
 						0,
@@ -538,10 +747,6 @@ io.on(
 					const target
 					of game.players.values()
 				) {
-					/*
-					 * Don't attack yourself
-					 * or dead players.
-					 */
 					if (
 						target.id ===
 							attacker.id ||
@@ -584,8 +789,12 @@ io.on(
 						room
 					);
 
-				if (!game)
+				if (
+					!game ||
+					!game.started
+				) {
 					return;
+				}
 
 				const player =
 					game.findPlayerBySocket(
@@ -651,6 +860,12 @@ io.on(
 
 				game.generateSequence();
 
+				game.activeMode =
+					game.getPlayers()
+						.length > 1
+						? game.mode
+						: "solo";
+
 				game.started =
 					true;
 
@@ -669,9 +884,14 @@ io.on(
 
 					roomPlayer.spectrum =
 						[];
+
+					roomPlayer.score =
+						0;
 				}
 
-				io.to(room).emit(
+				io.to(
+					room
+				).emit(
 					"game:restart"
 				);
 
@@ -680,7 +900,7 @@ io.on(
 				);
 
 				console.log(
-					`Game ${room} restarted by ${player.name}`
+					`Game ${room} restarted by ${player.name} (${game.activeMode})`
 				);
 			}
 		);
@@ -724,11 +944,6 @@ io.on(
 				if (!player)
 					return;
 
-				/*
-				 * Ignore an old socket
-				 * if player already
-				 * reconnected.
-				 */
 				if (
 					player.socketId !==
 					socket.id
@@ -769,10 +984,6 @@ io.on(
 							if (!currentPlayer)
 								return;
 
-							/*
-							 * Reconnected during
-							 * grace period.
-							 */
 							if (
 								currentPlayer.socketId !==
 								socket.id
@@ -791,8 +1002,7 @@ io.on(
 							if (
 								currentGame
 									.getPlayers()
-									.length ===
-								0
+									.length === 0
 							) {
 								gameManager.removeGame(
 									room

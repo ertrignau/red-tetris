@@ -11,6 +11,7 @@ class Player {
 		this.alive = true;
 		this.pieceIndex = 0;
 		this.spectrum = [];
+		this.score = 0;
 
 		this.isHost = false;
 	}
