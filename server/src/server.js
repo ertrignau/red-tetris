@@ -30,7 +30,7 @@ const gameManager =
 	new GameManager();
 
 /*
- * playerId -> timeout
+ * room:playerId -> timeout
  */
 const disconnectTimers =
 	new Map();
@@ -79,9 +79,6 @@ function buildRoomState(
 		started:
 			game.started,
 
-		/*
-		 * Player ID, not socket ID.
-		 */
 		hostId:
 			game.hostId,
 
@@ -145,6 +142,19 @@ io.on(
 					return;
 				}
 
+				const previousRoom =
+					socket.data.room;
+
+				if (
+					previousRoom &&
+					previousRoom !==
+						room
+				) {
+					socket.leave(
+						previousRoom
+					);
+				}
+
 				const game =
 					gameManager
 						.getOrCreateGame(
@@ -157,11 +167,10 @@ io.on(
 					);
 
 				/*
-				 * A new player cannot join
-				 * after game start.
+				 * New players cannot join
+				 * after the game has started.
 				 *
-				 * An existing player CAN
-				 * reconnect.
+				 * Existing players may reconnect.
 				 */
 				if (
 					game.started &&
@@ -188,10 +197,13 @@ io.on(
 				if (
 					existingPlayer
 				) {
-					existingPlayer
-						.reconnect(
-							socket.id
-						);
+					const isRealReconnect =
+						existingPlayer.socketId !==
+						socket.id;
+
+					existingPlayer.reconnect(
+						socket.id
+					);
 
 					existingPlayer.name =
 						player;
@@ -199,9 +211,13 @@ io.on(
 					roomPlayer =
 						existingPlayer;
 
-					console.log(
-						`Player ${player} reconnected to ${room}`
-					);
+					if (
+						isRealReconnect
+					) {
+						console.log(
+							`Player ${player} reconnected to ${room}`
+						);
+					}
 				} else {
 					roomPlayer =
 						new Player(
@@ -223,10 +239,6 @@ io.on(
 					room
 				);
 
-				/*
-				 * Store useful identity
-				 * directly on the socket.
-				 */
 				socket.data.room =
 					room;
 
@@ -253,6 +265,12 @@ io.on(
 				if (!game)
 					return;
 
+				if (
+					game.started
+				) {
+					return;
+				}
+
 				const player =
 					game.findPlayerBySocket(
 						socket.id
@@ -272,6 +290,9 @@ io.on(
 
 				game.started =
 					true;
+
+				game.eliminationOrder =
+					[];
 
 				for (
 					const roomPlayer
@@ -311,6 +332,12 @@ io.on(
 				if (!game)
 					return;
 
+				if (
+					!game.started
+				) {
+					return;
+				}
+
 				const player =
 					game.findPlayerBySocket(
 						socket.id
@@ -318,6 +345,12 @@ io.on(
 
 				if (!player)
 					return;
+
+				if (
+					!player.alive
+				) {
+					return;
+				}
 
 				const piece =
 					game.getNextPiece(
@@ -342,6 +375,106 @@ io.on(
 
 				console.log(
 					`Next piece for ${player.name}: ${piece} (index ${player.pieceIndex})`
+				);
+			}
+		);
+
+		/*
+		 * PLAYER DEAD
+		 */
+		socket.on(
+			"player:dead",
+			({ room }) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (!player)
+					return;
+
+				if (
+					!player.alive
+				) {
+					return;
+				}
+
+				game.markPlayerDead(
+					player.id
+				);
+
+				console.log(
+					`Player ${player.name} finished`
+				);
+
+				emitRoomState(
+					game
+				);
+
+				/*
+				 * For now:
+				 *
+				 * ranking is displayed only
+				 * when EVERY player has
+				 * finished.
+				 */
+				if (
+					!game.isFinished()
+				) {
+					return;
+				}
+
+				game.started =
+					false;
+
+				const ranking =
+					game
+						.getRanking()
+						.map(
+							(
+								rankedPlayer,
+								index
+							) => ({
+								position:
+									index + 1,
+
+								playerId:
+									rankedPlayer.id,
+
+								name:
+									rankedPlayer.name,
+
+								isHost:
+									rankedPlayer.id ===
+									game.hostId
+							})
+						);
+
+				io.to(room).emit(
+					"game:finished",
+					{
+						ranking
+					}
+				);
+
+				emitRoomState(
+					game
+				);
+
+				console.log(
+					`Game ${room} finished`
 				);
 			}
 		);
@@ -414,9 +547,6 @@ io.on(
 				if (!player)
 					return;
 
-				/*
-				 * Only host can restart.
-				 */
 				if (
 					game.hostId !==
 					player.id
@@ -428,6 +558,9 @@ io.on(
 
 				game.started =
 					true;
+
+				game.eliminationOrder =
+					[];
 
 				for (
 					const roomPlayer
@@ -497,12 +630,10 @@ io.on(
 					return;
 
 				/*
-				 * Important:
-				 *
-				 * If this player already
-				 * reconnected with another
-				 * socket, this old disconnect
-				 * must do nothing.
+				 * If this old socket disconnects
+				 * after the player already
+				 * reconnected with a new socket,
+				 * ignore it.
 				 */
 				if (
 					player.socketId !==
@@ -545,8 +676,7 @@ io.on(
 								return;
 
 							/*
-							 * Player reconnected
-							 * during grace period.
+							 * Player reconnected.
 							 */
 							if (
 								currentPlayer.socketId !==
@@ -566,7 +696,8 @@ io.on(
 							if (
 								currentGame
 									.getPlayers()
-									.length === 0
+									.length ===
+								0
 							) {
 								gameManager.removeGame(
 									room
@@ -583,7 +714,9 @@ io.on(
 								currentGame
 							);
 
-							if (wasHost) {
+							if (
+								wasHost
+							) {
 								console.log(
 									`New host for ${room}: ${currentGame.hostId}`
 								);

@@ -13,18 +13,9 @@ class Game {
 		this.roomName =
 			roomName;
 
-		/*
-		 * Map:
-		 *
-		 * playerId -> Player
-		 */
 		this.players =
 			new Map();
 
-		/*
-		 * hostId is now a PLAYER ID,
-		 * not a socket ID.
-		 */
 		this.hostId =
 			null;
 
@@ -33,13 +24,12 @@ class Game {
 
 		this.pieces =
 			[];
+
+		this.eliminationOrder =
+			[];
 	}
 
 	addPlayer(player) {
-		/*
-		 * Already registered:
-		 * update network connection.
-		 */
 		const existingPlayer =
 			this.players.get(
 				player.id
@@ -61,9 +51,6 @@ class Game {
 			player
 		);
 
-		/*
-		 * First player becomes host.
-		 */
 		if (
 			this.hostId === null
 		) {
@@ -100,9 +87,6 @@ class Game {
 	}
 
 	assignNewHost() {
-		/*
-		 * Reset host flags first.
-		 */
 		for (
 			const player
 			of this.players.values()
@@ -137,9 +121,7 @@ class Game {
 		);
 	}
 
-	findPlayerBySocket(
-		socketId
-	) {
+	findPlayerBySocket(socketId) {
 		for (
 			const player
 			of this.players.values()
@@ -159,6 +141,58 @@ class Game {
 		return Array.from(
 			this.players.values()
 		);
+	}
+
+	markPlayerDead(playerId) {
+		const player =
+			this.players.get(
+				playerId
+			);
+
+		if (
+			!player ||
+			!player.alive
+		) {
+			return;
+		}
+
+		player.alive =
+			false;
+
+		this.eliminationOrder.push(
+			playerId
+		);
+	}
+
+	getAlivePlayers() {
+		return this
+			.getPlayers()
+			.filter(
+				(player) =>
+					player.alive
+			);
+	}
+
+	isFinished() {
+		return (
+			this
+				.getAlivePlayers()
+				.length === 0
+		);
+	}
+
+	getRanking() {
+		return [
+			...this.eliminationOrder
+		]
+			.reverse()
+			.map(
+				(playerId) =>
+					this.players.get(
+						playerId
+					)
+			)
+			.filter(Boolean);
 	}
 
 	generateBag() {
@@ -193,7 +227,8 @@ class Game {
 	generateSequence(
 		bagCount = 20
 	) {
-		this.pieces = [];
+		this.pieces =
+			[];
 
 		for (
 			let i = 0;
