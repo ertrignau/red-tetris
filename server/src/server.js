@@ -168,9 +168,10 @@ io.on(
 
 				/*
 				 * New players cannot join
-				 * after the game has started.
+				 * a game already running.
 				 *
-				 * Existing players may reconnect.
+				 * Existing players may
+				 * reconnect.
 				 */
 				if (
 					game.started &&
@@ -192,8 +193,6 @@ io.on(
 					playerId
 				);
 
-				let roomPlayer;
-
 				if (
 					existingPlayer
 				) {
@@ -208,9 +207,6 @@ io.on(
 					existingPlayer.name =
 						player;
 
-					roomPlayer =
-						existingPlayer;
-
 					if (
 						isRealReconnect
 					) {
@@ -219,7 +215,7 @@ io.on(
 						);
 					}
 				} else {
-					roomPlayer =
+					const roomPlayer =
 						new Player(
 							playerId,
 							socket.id,
@@ -252,7 +248,7 @@ io.on(
 		);
 
 		/*
-		 * START GAME
+		 * START
 		 */
 		socket.on(
 			"game:start",
@@ -279,6 +275,9 @@ io.on(
 				if (!player)
 					return;
 
+				/*
+				 * Host only.
+				 */
 				if (
 					game.hostId !==
 					player.id
@@ -329,10 +328,8 @@ io.on(
 						room
 					);
 
-				if (!game)
-					return;
-
 				if (
+					!game ||
 					!game.started
 				) {
 					return;
@@ -343,10 +340,8 @@ io.on(
 						socket.id
 					);
 
-				if (!player)
-					return;
-
 				if (
+					!player ||
 					!player.alive
 				) {
 					return;
@@ -402,10 +397,8 @@ io.on(
 						socket.id
 					);
 
-				if (!player)
-					return;
-
 				if (
+					!player ||
 					!player.alive
 				) {
 					return;
@@ -424,11 +417,10 @@ io.on(
 				);
 
 				/*
-				 * For now:
+				 * Current mode:
 				 *
-				 * ranking is displayed only
-				 * when EVERY player has
-				 * finished.
+				 * wait for EVERY player
+				 * to finish before ranking.
 				 */
 				if (
 					!game.isFinished()
@@ -480,6 +472,105 @@ io.on(
 		);
 
 		/*
+		 * PENALTY
+		 *
+		 * n cleared lines
+		 * => n - 1 penalty lines.
+		 *
+		 * Client sends count already
+		 * calculated.
+		 */
+		socket.on(
+			"penalty:send",
+			({
+				room,
+				count
+			}) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const attacker =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (
+					!attacker ||
+					!attacker.alive
+				) {
+					return;
+				}
+
+				/*
+				 * Maximum possible from
+				 * a normal Tetris:
+				 *
+				 * 4 cleared => 3 penalties.
+				 */
+				const penaltyCount =
+					Math.max(
+						0,
+						Math.min(
+							3,
+							Number(
+								count
+							) || 0
+						)
+					);
+
+				if (
+					penaltyCount ===
+					0
+				) {
+					return;
+				}
+
+				for (
+					const target
+					of game.players.values()
+				) {
+					/*
+					 * Don't attack yourself
+					 * or dead players.
+					 */
+					if (
+						target.id ===
+							attacker.id ||
+						!target.alive
+					) {
+						continue;
+					}
+
+					io.to(
+						target.socketId
+					).emit(
+						"penalty:add",
+						{
+							count:
+								penaltyCount,
+
+							from:
+								attacker.name
+						}
+					);
+				}
+
+				console.log(
+					`${attacker.name} sent ${penaltyCount} penalty line(s)`
+				);
+			}
+		);
+
+		/*
 		 * SPECTRUM
 		 */
 		socket.on(
@@ -501,8 +592,12 @@ io.on(
 						socket.id
 					);
 
-				if (!player)
+				if (
+					!player ||
+					!player.alive
+				) {
 					return;
+				}
 
 				player.spectrum =
 					spectrum;
@@ -630,10 +725,9 @@ io.on(
 					return;
 
 				/*
-				 * If this old socket disconnects
-				 * after the player already
-				 * reconnected with a new socket,
-				 * ignore it.
+				 * Ignore an old socket
+				 * if player already
+				 * reconnected.
 				 */
 				if (
 					player.socketId !==
@@ -676,7 +770,8 @@ io.on(
 								return;
 
 							/*
-							 * Player reconnected.
+							 * Reconnected during
+							 * grace period.
 							 */
 							if (
 								currentPlayer.socketId !==

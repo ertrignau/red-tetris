@@ -13,6 +13,10 @@ import {
 	createBoard
 } from "../../game/board.js";
 
+import {
+	addPenaltyLines
+} from "../../game/penalty.js";
+
 import useSocket from "../../hooks/useSocket.js";
 import useKeyboard from "../../hooks/useKeyboard.js";
 import useGameLoop from "../../hooks/useGameLoop.js";
@@ -31,16 +35,22 @@ function Game() {
 		player
 	} = useParams();
 
-	const [board, setBoard] =
-		useState(
-			() => createBoard()
-		);
+	const [
+		board,
+		setBoard
+	] = useState(
+		() => createBoard()
+	);
 
-	const [score, setScore] =
-		useState(0);
+	const [
+		score,
+		setScore
+	] = useState(0);
 
-	const [gameOver, setGameOver] =
-		useState(false);
+	const [
+		gameOver,
+		setGameOver
+	] = useState(false);
 
 	const [
 		showRanking,
@@ -52,6 +62,14 @@ function Game() {
 		setIsFading
 	] = useState(false);
 
+	const [
+		ranking,
+		setRanking
+	] = useState([]);
+
+	/*
+	 * SOCKET / ROOM
+	 */
 	const {
 		playerId,
 
@@ -68,6 +86,9 @@ function Game() {
 		player
 	);
 
+	/*
+	 * CONTROLS
+	 */
 	useKeyboard({
 		started:
 			roomState?.started,
@@ -81,6 +102,9 @@ function Game() {
 		setCurrentPiece
 	});
 
+	/*
+	 * GAME LOOP
+	 */
 	useGameLoop({
 		room,
 
@@ -99,6 +123,9 @@ function Game() {
 		setScore
 	});
 
+	/*
+	 * SPECTRUM
+	 */
 	const {
 		opponents
 	} = useMultiplayer({
@@ -111,16 +138,23 @@ function Game() {
 	});
 
 	/*
-	 * hostId is now playerId.
+	 * HOST
 	 */
 	const isHost =
 		roomState?.hostId ===
 		playerId;
 
+	/*
+	 * START
+	 */
 	const handleStart =
 		() => {
-			if (!isHost)
+			if (
+				!isHost ||
+				roomState?.started
+			) {
 				return;
+			}
 
 			socket.emit(
 				"game:start",
@@ -131,41 +165,106 @@ function Game() {
 		};
 
 	/*
-	 * Current temporary ranking behavior.
+	 * FINAL RANKING
+	 *
+	 * Ranking appears only when
+	 * the server decides every
+	 * player finished.
 	 */
 	useEffect(() => {
-		if (!gameOver)
-			return;
+		let fadeTimeout =
+			null;
 
-		setIsFading(
-			true
+		const onGameFinished =
+			(data) => {
+				console.log(
+					"FINAL RANKING:",
+					data.ranking
+				);
+
+				setRanking(
+					data.ranking ??
+						[]
+				);
+
+				setIsFading(
+					true
+				);
+
+				fadeTimeout =
+					setTimeout(
+						() => {
+							setShowRanking(
+								true
+							);
+
+							setIsFading(
+								false
+							);
+						},
+						700
+					);
+			};
+
+		socket.on(
+			"game:finished",
+			onGameFinished
 		);
 
-		const timeout =
-			setTimeout(
-				() => {
-					setShowRanking(
-						true
-					);
-
-					setIsFading(
-						false
-					);
-				},
-				700
-			);
-
 		return () => {
-			clearTimeout(
-				timeout
+			socket.off(
+				"game:finished",
+				onGameFinished
 			);
+
+			if (
+				fadeTimeout
+			) {
+				clearTimeout(
+					fadeTimeout
+				);
+			}
 		};
-	}, [
-		gameOver
-	]);
+	}, []);
 
 	/*
-	 * Only host can REQUEST restart.
+	 * RECEIVE PENALTY
+	 */
+	useEffect(() => {
+		const onPenaltyAdd =
+			({
+				count,
+				from
+			}) => {
+				console.log(
+					`Penalty received from ${from}:`,
+					count
+				);
+
+				setBoard(
+					(currentBoard) =>
+						addPenaltyLines(
+							currentBoard,
+							count
+						)
+				);
+			};
+
+		socket.on(
+			"penalty:add",
+			onPenaltyAdd
+		);
+
+		return () => {
+			socket.off(
+				"penalty:add",
+				onPenaltyAdd
+			);
+		};
+	}, []);
+
+	/*
+	 * HOST REQUESTS RESTART
 	 */
 	const handleRestart =
 		() => {
@@ -181,7 +280,7 @@ function Game() {
 		};
 
 	/*
-	 * Everybody RECEIVES restart.
+	 * EVERYBODY RECEIVES RESTART
 	 */
 	useEffect(() => {
 		const onGameRestart =
@@ -206,14 +305,14 @@ function Game() {
 					false
 				);
 
+				setRanking(
+					[]
+				);
+
 				setCurrentPiece(
 					null
 				);
 
-				/*
-				 * New sequence was reset
-				 * server side.
-				 */
 				socket.emit(
 					"piece:next",
 					{
@@ -257,8 +356,7 @@ function Game() {
 			{showRanking ? (
 				<Ranking
 					players={
-						roomState?.players ??
-						[]
+						ranking
 					}
 
 					currentPlayerId={

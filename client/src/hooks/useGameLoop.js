@@ -48,6 +48,9 @@ function useGameLoop({
 			currentPiece;
 	}, [currentPiece]);
 
+	/*
+	 * GAME OVER DETECTION
+	 */
 	useEffect(() => {
 		if (
 			!started ||
@@ -77,8 +80,16 @@ function useGameLoop({
 			setGameOver(
 				true
 			);
+
+			socket.emit(
+				"player:dead",
+				{
+					room
+				}
+			);
 		}
 	}, [
+		room,
 		started,
 		currentPiece,
 		board,
@@ -87,6 +98,9 @@ function useGameLoop({
 		setGameOver
 	]);
 
+	/*
+	 * GRAVITY / LOCK
+	 */
 	useEffect(() => {
 		if (
 			!started ||
@@ -96,91 +110,123 @@ function useGameLoop({
 		}
 
 		const gravityInterval =
-			setInterval(() => {
-				const piece =
-					currentPieceRef.current;
+			setInterval(
+				() => {
+					const piece =
+						currentPieceRef.current;
 
-				const currentBoard =
-					boardRef.current;
+					const currentBoard =
+						boardRef.current;
 
-				if (!piece)
-					return;
+					if (!piece)
+						return;
 
-				const nextPosition = {
-					...piece,
-					y:
-						piece.y + 1
-				};
+					const nextPosition = {
+						...piece,
+						y:
+							piece.y + 1
+					};
 
-				if (
-					!hasCollision(
-						currentBoard,
-						nextPosition
-					)
-				) {
+					if (
+						!hasCollision(
+							currentBoard,
+							nextPosition
+						)
+					) {
+						currentPieceRef.current =
+							nextPosition;
+
+						setCurrentPiece(
+							nextPosition
+						);
+
+						return;
+					}
+
+					const lockedBoard =
+						lockPiece(
+							currentBoard,
+							piece
+						);
+
+					const result =
+						clearLines(
+							lockedBoard
+						);
+
+					boardRef.current =
+						result.board;
+
 					currentPieceRef.current =
-						nextPosition;
+						null;
+
+					setBoard(
+						result.board
+					);
 
 					setCurrentPiece(
-						nextPosition
+						null
 					);
 
-					return;
-				}
+					if (
+						result.clearedLines >
+						0
+					) {
+						const gainedScore =
+							calculateScore(
+								result.clearedLines
+							);
 
-				const lockedBoard =
-					lockPiece(
-						currentBoard,
-						piece
-					);
+						setScore(
+							(currentScore) =>
+								currentScore +
+								gainedScore
+						);
 
-				const result =
-					clearLines(
-						lockedBoard
-					);
-
-				boardRef.current =
-					result.board;
-
-				currentPieceRef.current =
-					null;
-
-				setBoard(
-					result.board
-				);
-
-				setCurrentPiece(
-					null
-				);
-
-				if (
-					result.clearedLines >
-					0
-				) {
-					const gainedScore =
-						calculateScore(
+						console.log(
+							"Lines cleared:",
 							result.clearedLines
 						);
 
-					setScore(
-						(currentScore) =>
-							currentScore +
-							gainedScore
-					);
+						/*
+						 * Mandatory:
+						 *
+						 * n cleared lines
+						 * => n - 1 penalty lines
+						 */
+						if (
+							result.clearedLines >
+							1
+						) {
+							const penaltyCount =
+								result.clearedLines -
+								1;
 
-					console.log(
-						"Lines cleared:",
-						result.clearedLines
-					);
-				}
+							socket.emit(
+								"penalty:send",
+								{
+									room,
+									count:
+										penaltyCount
+								}
+							);
 
-				socket.emit(
-					"piece:next",
-					{
-						room
+							console.log(
+								"Penalty sent:",
+								penaltyCount
+							);
+						}
 					}
-				);
-			}, 700);
+
+					socket.emit(
+						"piece:next",
+						{
+							room
+						}
+					);
+				},
+				700
+			);
 
 		return () => {
 			clearInterval(
