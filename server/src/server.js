@@ -16,6 +16,21 @@ const PORT =
 const DISCONNECT_GRACE_MS =
 	3000;
 
+const USERNAME_MIN_LENGTH =
+	3;
+
+const USERNAME_MAX_LENGTH =
+	16;
+
+const ROOM_MIN_LENGTH =
+	3;
+
+const ROOM_MAX_LENGTH =
+	20;
+
+const ROOM_REGEX =
+	/^[a-zA-Z0-9_-]+$/;
+
 const server =
 	http.createServer(
 		app
@@ -29,9 +44,6 @@ const io =
 const gameManager =
 	new GameManager();
 
-/*
- * room:playerId -> timeout
- */
 const disconnectTimers =
 	new Map();
 
@@ -192,6 +204,44 @@ function finishGame(
 	);
 }
 
+function validateUsername(
+	username
+) {
+	if (
+		username.length <
+			USERNAME_MIN_LENGTH ||
+		username.length >
+			USERNAME_MAX_LENGTH
+	) {
+		return `Username must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`;
+	}
+
+	return null;
+}
+
+function validateRoom(
+	room
+) {
+	if (
+		room.length <
+			ROOM_MIN_LENGTH ||
+		room.length >
+			ROOM_MAX_LENGTH
+	) {
+		return `Room name must be between ${ROOM_MIN_LENGTH} and ${ROOM_MAX_LENGTH} characters`;
+	}
+
+	if (
+		!ROOM_REGEX.test(
+			room
+		)
+	) {
+		return "Room can only contain letters, numbers, - and _";
+	}
+
+	return null;
+}
+
 io.on(
 	"connection",
 	(socket) => {
@@ -210,10 +260,80 @@ io.on(
 				playerId
 			}) => {
 				if (
-					!room ||
-					!player ||
-					!playerId
+					typeof room !==
+						"string" ||
+					typeof player !==
+						"string" ||
+					typeof playerId !==
+						"string"
 				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								"Invalid room or username"
+						}
+					);
+
+					return;
+				}
+
+				const cleanRoom =
+					room.trim();
+
+				const cleanPlayer =
+					player.trim();
+
+				const usernameError =
+					validateUsername(
+						cleanPlayer
+					);
+
+				if (
+					usernameError
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								usernameError
+						}
+					);
+
+					return;
+				}
+
+				const roomError =
+					validateRoom(
+						cleanRoom
+					);
+
+				if (
+					roomError
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								roomError
+						}
+					);
+
+					return;
+				}
+
+				if (
+					playerId.length >
+					128
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								"Invalid player id"
+						}
+					);
+
 					return;
 				}
 
@@ -223,7 +343,7 @@ io.on(
 				if (
 					previousRoom &&
 					previousRoom !==
-						room
+						cleanRoom
 				) {
 					socket.leave(
 						previousRoom
@@ -233,7 +353,7 @@ io.on(
 				const game =
 					gameManager
 						.getOrCreateGame(
-							room
+							cleanRoom
 						);
 
 				const existingPlayer =
@@ -241,13 +361,6 @@ io.on(
 						playerId
 					);
 
-				/*
-				 * New player cannot join
-				 * an already running game.
-				 *
-				 * Existing player can
-				 * reconnect.
-				 */
 				if (
 					game.started &&
 					!existingPlayer
@@ -264,7 +377,7 @@ io.on(
 				}
 
 				cancelDisconnect(
-					room,
+					cleanRoom,
 					playerId
 				);
 
@@ -280,13 +393,13 @@ io.on(
 					);
 
 					existingPlayer.name =
-						player;
+						cleanPlayer;
 
 					if (
 						isRealReconnect
 					) {
 						console.log(
-							`Player ${player} reconnected to ${room}`
+							`Player ${cleanPlayer} reconnected to ${cleanRoom}`
 						);
 					}
 				} else {
@@ -294,7 +407,7 @@ io.on(
 						new Player(
 							playerId,
 							socket.id,
-							player
+							cleanPlayer
 						);
 
 					game.addPlayer(
@@ -302,16 +415,16 @@ io.on(
 					);
 
 					console.log(
-						`Player ${player} joined room ${room}`
+						`Player ${cleanPlayer} joined room ${cleanRoom}`
 					);
 				}
 
 				socket.join(
-					room
+					cleanRoom
 				);
 
 				socket.data.room =
-					room;
+					cleanRoom;
 
 				socket.data.playerId =
 					playerId;
@@ -324,10 +437,6 @@ io.on(
 
 		/*
 		 * GAME MODE
-		 *
-		 * Only host can change it.
-		 * Only before game start.
-		 * Only useful with 2+ players.
 		 */
 		socket.on(
 			"game:mode",
@@ -614,12 +723,6 @@ io.on(
 					game
 				);
 
-				/*
-				 * BATTLE ROYALE
-				 *
-				 * Last alive wins
-				 * immediately.
-				 */
 				if (
 					game.activeMode ===
 					"battle-royale"
@@ -653,11 +756,6 @@ io.on(
 					return;
 				}
 
-				/*
-				 * POINTS
-				 *
-				 * Everybody must finish.
-				 */
 				if (
 					game.activeMode ===
 					"points"
@@ -676,9 +774,6 @@ io.on(
 					return;
 				}
 
-				/*
-				 * SOLO
-				 */
 				if (
 					!game.isFinished()
 				) {
