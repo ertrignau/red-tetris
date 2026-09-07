@@ -582,8 +582,18 @@ function PlayerList({
 	playerId,
 	error,
 	isHost,
-	onStart
+	onStart,
+	mode,
+	onModeChange
 }) {
+	const hasMultiplePlayers =
+		(roomState?.players?.length ?? 0) > 1;
+
+	const modeLabel =
+		mode === "points"
+			? "POINTS"
+			: "BATTLE ROYALE";
+
 	return (
 		<aside className="game-panel players-panel">
 			<div className="panel-header">
@@ -632,9 +642,7 @@ function PlayerList({
 								</div>
 
 								<span className="player-name">
-									{
-										roomPlayer.name
-									}
+									{roomPlayer.name}
 								</span>
 
 								{roomPlayer.isHost && (
@@ -652,9 +660,61 @@ function PlayerList({
 				</p>
 			)}
 
+			{hasMultiplePlayers && (
+				<div className="game-mode-block">
+					<span className="game-mode-label">
+						GAME MODE
+					</span>
+
+					{isHost &&
+					!roomState?.started ? (
+						<div className="game-mode-buttons">
+							<button
+								type="button"
+								className={
+									mode ===
+									"battle-royale"
+										? "mode-button mode-active"
+										: "mode-button"
+								}
+								onClick={() =>
+									onModeChange(
+										"battle-royale"
+									)
+								}
+							>
+								BATTLE ROYALE
+							</button>
+
+							<button
+								type="button"
+								className={
+									mode ===
+									"points"
+										? "mode-button mode-active"
+										: "mode-button"
+								}
+								onClick={() =>
+									onModeChange(
+										"points"
+									)
+								}
+							>
+								POINTS
+							</button>
+						</div>
+					) : (
+						<strong className="game-mode-value">
+							{modeLabel}
+						</strong>
+					)}
+				</div>
+			)}
+
 			{isHost &&
 				!roomState?.started && (
 					<button
+						type="button"
 						className="start-button"
 						onClick={
 							onStart
@@ -811,25 +871,64 @@ export function getGhostPiece(board, piece) {
 ## `client/src/game/lines.js`
 
 ```javascript
-export function clearLines(board) {
-	const width = board[0].length;
+export function clearLines(
+	board
+) {
+	const width =
+		board[0].length;
 
-	const remainingRows = board.filter((row) =>
-		row.some((cell) => cell === null)
-	);
+	const remainingRows =
+		board.filter(
+			(row) => {
+				const isFull =
+					row.every(
+						(cell) =>
+							cell !==
+							null
+					);
 
-	const clearedLines = board.length - remainingRows.length;
+				const hasPenalty =
+					row.some(
+						(cell) =>
+							cell ===
+							"P"
+					);
 
-	const emptyRows = Array.from(
-		{ length: clearedLines },
-		() => Array(width).fill(null)
-	);
+				/*
+				 * Penalty rows are
+				 * indestructible.
+				 */
+				return (
+					!isFull ||
+					hasPenalty
+				);
+			}
+		);
+
+	const clearedLines =
+		board.length -
+		remainingRows.length;
+
+	const emptyRows =
+		Array.from(
+			{
+				length:
+					clearedLines
+			},
+			() =>
+				Array(
+					width
+				).fill(
+					null
+				)
+		);
 
 	return {
 		board: [
 			...emptyRows,
 			...remainingRows
 		],
+
 		clearedLines
 	};
 }
@@ -869,7 +968,56 @@ export function moveDown(board, piece) {
 ## `client/src/game/penalty.js`
 
 ```javascript
+export function addPenaltyLines(
+	board,
+	count
+) {
+	if (
+		!board ||
+		count <= 0
+	) {
+		return board;
+	}
 
+	const width =
+		board[0].length;
+
+	const penaltyCount =
+		Math.min(
+			count,
+			board.length
+		);
+
+	const remainingBoard =
+		board
+			.slice(
+				penaltyCount
+			)
+			.map(
+				(row) => [
+					...row
+				]
+			);
+
+	const penaltyRows =
+		Array.from(
+			{
+				length:
+					penaltyCount
+			},
+			() =>
+				Array(
+					width
+				).fill(
+					"P"
+				)
+		);
+
+	return [
+		...remainingBoard,
+		...penaltyRows
+	];
+}
 ```
 
 ## `client/src/game/pieces.js`
@@ -1006,6 +1154,7 @@ export function calculateSpectrum(board) {
 
 ```javascript
 import {
+	useCallback,
 	useEffect,
 	useRef
 } from "react";
@@ -1021,12 +1170,20 @@ import {
 } from "../game/collision.js";
 
 import {
+	hardDrop
+} from "../game/drop.js";
+
+import {
 	clearLines
 } from "../game/lines.js";
 
 import {
 	calculateScore
 } from "../game/scoring.js";
+
+import {
+	addPenaltyLines
+} from "../game/penalty.js";
 
 function useGameLoop({
 	room,
@@ -1055,6 +1212,268 @@ function useGameLoop({
 			currentPiece;
 	}, [currentPiece]);
 
+	/*
+	 * Lock a piece.
+	 *
+	 * Used both by gravity
+	 * and hard drop.
+	 */
+	const lockCurrentPiece =
+		useCallback(
+			(piece) => {
+				if (
+					!piece ||
+					gameOver
+				) {
+					return;
+				}
+
+				const currentBoard =
+					boardRef.current;
+
+				/*
+				 * Remove active piece
+				 * immediately so no input
+				 * can move it after lock.
+				 */
+				currentPieceRef.current =
+					null;
+
+				setCurrentPiece(
+					null
+				);
+
+				const lockedBoard =
+					lockPiece(
+						currentBoard,
+						piece
+					);
+
+				const result =
+					clearLines(
+						lockedBoard
+					);
+
+				boardRef.current =
+					result.board;
+
+				setBoard(
+					result.board
+				);
+
+				if (
+					result.clearedLines >
+					0
+				) {
+					const gainedScore =
+						calculateScore(
+							result.clearedLines
+						);
+
+					setScore(
+						(currentScore) => {
+							const nextScore =
+								currentScore +
+								gainedScore;
+
+							socket.emit(
+								"score:update",
+								{
+									room,
+									score:
+										nextScore
+								}
+							);
+
+							return nextScore;
+						}
+					);
+
+					console.log(
+						"Lines cleared:",
+						result.clearedLines
+					);
+
+					if (
+						result.clearedLines >
+						1
+					) {
+						const penaltyCount =
+							result.clearedLines -
+								1;
+
+						socket.emit(
+							"penalty:send",
+							{
+								room,
+								count:
+									penaltyCount
+							}
+						);
+
+						console.log(
+							"Penalty sent:",
+							penaltyCount
+						);
+					}
+				}
+
+				socket.emit(
+					"piece:next",
+					{
+						room
+					}
+				);
+			},
+			[
+				room,
+				gameOver,
+				setBoard,
+				setCurrentPiece,
+				setScore
+			]
+		);
+
+	/*
+	 * HARD DROP
+	 */
+	const hardDropCurrentPiece =
+		useCallback(
+			() => {
+				if (
+					!started ||
+					gameOver
+				) {
+					return;
+				}
+
+				const piece =
+					currentPieceRef.current;
+
+				if (!piece)
+					return;
+
+				const droppedPiece =
+					hardDrop(
+						boardRef.current,
+						piece
+					);
+
+				lockCurrentPiece(
+					droppedPiece
+				);
+			},
+			[
+				started,
+				gameOver,
+				lockCurrentPiece
+			]
+		);
+
+	/*
+	 * RECEIVE PENALTY.
+	 *
+	 * Garbage lines push the board
+	 * upward.
+	 *
+	 * The currently falling piece
+	 * must therefore be pushed
+	 * upward by the same amount,
+	 * otherwise the board can move
+	 * inside the piece and create a
+	 * false collision / game over.
+	 */
+	const applyPenalty =
+		useCallback(
+			(count) => {
+				if (
+					!started ||
+					gameOver
+				) {
+					return;
+				}
+
+				const penaltyCount =
+					Math.max(
+						0,
+						Math.floor(
+							Number(
+								count
+							) || 0
+						)
+					);
+
+				if (
+					penaltyCount ===
+					0
+				) {
+					return;
+				}
+
+				const currentBoard =
+					boardRef.current;
+
+				const nextBoard =
+					addPenaltyLines(
+						currentBoard,
+						penaltyCount
+					);
+
+				/*
+				 * Update the ref first.
+				 *
+				 * Gravity always sees the
+				 * new board immediately.
+				 */
+				boardRef.current =
+					nextBoard;
+
+				setBoard(
+					nextBoard
+				);
+
+				const piece =
+					currentPieceRef.current;
+
+				if (!piece)
+					return;
+
+				/*
+				 * Board moved up by N rows,
+				 * therefore active piece
+				 * moves up by N rows too.
+				 */
+				const shiftedPiece = {
+					...piece,
+
+					y:
+						piece.y -
+						penaltyCount
+				};
+
+				currentPieceRef.current =
+					shiftedPiece;
+
+				setCurrentPiece(
+					shiftedPiece
+				);
+
+				console.log(
+					"Penalty applied:",
+					penaltyCount
+				);
+			},
+			[
+				started,
+				gameOver,
+				setBoard,
+				setCurrentPiece
+			]
+		);
+
+	/*
+	 * GAME OVER DETECTION
+	 */
 	useEffect(() => {
 		if (
 			!started ||
@@ -1084,8 +1503,16 @@ function useGameLoop({
 			setGameOver(
 				true
 			);
+
+			socket.emit(
+				"player:dead",
+				{
+					room
+				}
+			);
 		}
 	}, [
+		room,
 		started,
 		currentPiece,
 		board,
@@ -1094,6 +1521,9 @@ function useGameLoop({
 		setGameOver
 	]);
 
+	/*
+	 * GRAVITY
+	 */
 	useEffect(() => {
 		if (
 			!started ||
@@ -1103,91 +1533,46 @@ function useGameLoop({
 		}
 
 		const gravityInterval =
-			setInterval(() => {
-				const piece =
-					currentPieceRef.current;
+			setInterval(
+				() => {
+					const piece =
+						currentPieceRef.current;
 
-				const currentBoard =
-					boardRef.current;
+					const currentBoard =
+						boardRef.current;
 
-				if (!piece)
-					return;
+					if (!piece)
+						return;
 
-				const nextPosition = {
-					...piece,
-					y:
-						piece.y + 1
-				};
+					const nextPosition = {
+						...piece,
 
-				if (
-					!hasCollision(
-						currentBoard,
-						nextPosition
-					)
-				) {
-					currentPieceRef.current =
-						nextPosition;
+						y:
+							piece.y + 1
+					};
 
-					setCurrentPiece(
-						nextPosition
-					);
+					if (
+						!hasCollision(
+							currentBoard,
+							nextPosition
+						)
+					) {
+						currentPieceRef.current =
+							nextPosition;
 
-					return;
-				}
-
-				const lockedBoard =
-					lockPiece(
-						currentBoard,
-						piece
-					);
-
-				const result =
-					clearLines(
-						lockedBoard
-					);
-
-				boardRef.current =
-					result.board;
-
-				currentPieceRef.current =
-					null;
-
-				setBoard(
-					result.board
-				);
-
-				setCurrentPiece(
-					null
-				);
-
-				if (
-					result.clearedLines >
-					0
-				) {
-					const gainedScore =
-						calculateScore(
-							result.clearedLines
+						setCurrentPiece(
+							nextPosition
 						);
 
-					setScore(
-						(currentScore) =>
-							currentScore +
-							gainedScore
-					);
-
-					console.log(
-						"Lines cleared:",
-						result.clearedLines
-					);
-				}
-
-				socket.emit(
-					"piece:next",
-					{
-						room
+						return;
 					}
-				);
-			}, 700);
+
+					lockCurrentPiece(
+						piece
+					);
+				},
+				700
+			);
 
 		return () => {
 			clearInterval(
@@ -1195,13 +1580,16 @@ function useGameLoop({
 			);
 		};
 	}, [
-		room,
 		started,
 		gameOver,
-		setBoard,
-		setCurrentPiece,
-		setScore
+		lockCurrentPiece,
+		setCurrentPiece
 	]);
+
+	return {
+		hardDropCurrentPiece,
+		applyPenalty
+	};
 }
 
 export default useGameLoop;
@@ -1210,7 +1598,9 @@ export default useGameLoop;
 ## `client/src/hooks/useKeyboard.js`
 
 ```javascript
-import { useEffect } from "react";
+import {
+	useEffect
+} from "react";
 
 import {
 	moveLeft,
@@ -1218,15 +1608,17 @@ import {
 	moveDown
 } from "../game/movement.js";
 
-import { rotatePiece } from "../game/rotation.js";
-import { hardDrop } from "../game/drop.js";
+import {
+	rotatePiece
+} from "../game/rotation.js";
 
 function useKeyboard({
 	started,
 	gameOver,
 	board,
 	currentPiece,
-	setCurrentPiece
+	setCurrentPiece,
+	onHardDrop
 }) {
 	useEffect(() => {
 		if (
@@ -1237,115 +1629,113 @@ function useKeyboard({
 			return;
 		}
 
-		const handleKeyDown = (event) => {
-			/*
-			 * Rotation and hard drop must happen
-			 * only once per physical key press.
-			 *
-			 * Holding the key would otherwise
-			 * continuously reset the game loop.
-			 */
-			if (
-				event.repeat &&
-				(
-					event.code === "ArrowUp" ||
-					event.code === "Space"
-				)
-			) {
-				event.preventDefault();
-				return;
-			}
-
-			switch (event.code) {
-				case "ArrowLeft":
+		const handleKeyDown =
+			(event) => {
+				/*
+				 * Rotation and hard drop
+				 * happen only once per
+				 * physical key press.
+				 */
+				if (
+					event.repeat &&
+					(
+						event.code ===
+							"ArrowUp" ||
+						event.code ===
+							"Space"
+					)
+				) {
 					event.preventDefault();
 
-					setCurrentPiece(
-						(piece) => {
-							if (!piece)
-								return piece;
+					return;
+				}
 
-							return moveLeft(
-								board,
-								piece
-							);
+				switch (
+					event.code
+				) {
+					case "ArrowLeft":
+						event.preventDefault();
+
+						setCurrentPiece(
+							(piece) => {
+								if (!piece)
+									return piece;
+
+								return moveLeft(
+									board,
+									piece
+								);
+							}
+						);
+
+						break;
+
+					case "ArrowRight":
+						event.preventDefault();
+
+						setCurrentPiece(
+							(piece) => {
+								if (!piece)
+									return piece;
+
+								return moveRight(
+									board,
+									piece
+								);
+							}
+						);
+
+						break;
+
+					case "ArrowDown":
+						event.preventDefault();
+
+						setCurrentPiece(
+							(piece) => {
+								if (!piece)
+									return piece;
+
+								return moveDown(
+									board,
+									piece
+								);
+							}
+						);
+
+						break;
+
+					case "ArrowUp":
+						event.preventDefault();
+
+						setCurrentPiece(
+							(piece) => {
+								if (!piece)
+									return piece;
+
+								return rotatePiece(
+									board,
+									piece
+								);
+							}
+						);
+
+						break;
+
+					case "Space":
+						event.preventDefault();
+
+						if (
+							onHardDrop
+						) {
+							onHardDrop();
 						}
-					);
 
-					break;
+						break;
 
-				case "ArrowRight":
-					event.preventDefault();
-
-					setCurrentPiece(
-						(piece) => {
-							if (!piece)
-								return piece;
-
-							return moveRight(
-								board,
-								piece
-							);
-						}
-					);
-
-					break;
-
-				case "ArrowDown":
-					event.preventDefault();
-
-					setCurrentPiece(
-						(piece) => {
-							if (!piece)
-								return piece;
-
-							return moveDown(
-								board,
-								piece
-							);
-						}
-					);
-
-					break;
-
-				case "ArrowUp":
-					event.preventDefault();
-
-					setCurrentPiece(
-						(piece) => {
-							if (!piece)
-								return piece;
-
-							return rotatePiece(
-								board,
-								piece
-							);
-						}
-					);
-
-					break;
-
-				case "Space":
-					event.preventDefault();
-
-					setCurrentPiece(
-						(piece) => {
-							if (!piece)
-								return piece;
-
-							return hardDrop(
-								board,
-								piece
-							);
-						}
-					);
-
-					break;
-
-				default:
-					break;
-			}
-		};
+					default:
+						break;
+				}
+			};
 
 		window.addEventListener(
 			"keydown",
@@ -1363,7 +1753,8 @@ function useKeyboard({
 		gameOver,
 		board,
 		currentPiece,
-		setCurrentPiece
+		setCurrentPiece,
+		onHardDrop
 	]);
 }
 
@@ -1725,16 +2116,22 @@ function Game() {
 		player
 	} = useParams();
 
-	const [board, setBoard] =
-		useState(
-			() => createBoard()
-		);
+	const [
+		board,
+		setBoard
+	] = useState(
+		() => createBoard()
+	);
 
-	const [score, setScore] =
-		useState(0);
+	const [
+		score,
+		setScore
+	] = useState(0);
 
-	const [gameOver, setGameOver] =
-		useState(false);
+	const [
+		gameOver,
+		setGameOver
+	] = useState(false);
 
 	const [
 		showRanking,
@@ -1746,75 +2143,317 @@ function Game() {
 		setIsFading
 	] = useState(false);
 
+	const [
+		ranking,
+		setRanking
+	] = useState([]);
+
+	const [
+		finishedMode,
+		setFinishedMode
+	] = useState(null);
+
+	const [
+		countdown,
+		setCountdown
+	] = useState(null);
+
+	const [
+		gamePlayable,
+		setGamePlayable
+	] = useState(false);
+
+	/*
+	 * SOCKET / ROOM STATE
+	 */
 	const {
 		playerId,
-
 		roomState,
-
 		error,
-
 		currentPiece,
 		setCurrentPiece,
-
 		nextPiece
 	} = useSocket(
 		room,
 		player
 	);
 
-	useKeyboard({
-		started:
-			roomState?.started,
+	/*
+	 * COUNTDOWN
+	 *
+	 * Server gives every client
+	 * the same countdown end time.
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!roomState?.countdownEndsAt
+		) {
+			setCountdown(
+				null
+			);
 
-		gameOver,
+			setGamePlayable(
+				false
+			);
 
-		board,
+			return;
+		}
 
-		currentPiece,
+		let goTimeout =
+			null;
 
-		setCurrentPiece
-	});
+		const updateCountdown =
+			() => {
+				const remaining =
+					roomState.countdownEndsAt -
+					Date.now();
 
-	useGameLoop({
+				if (
+					remaining <= 0
+				) {
+					setCountdown(
+						"GO"
+					);
+
+					setGamePlayable(
+						true
+					);
+
+					goTimeout =
+						setTimeout(
+							() => {
+								setCountdown(
+									null
+								);
+							},
+							500
+						);
+
+					return true;
+				}
+
+				setCountdown(
+					Math.ceil(
+						remaining /
+							1000
+					)
+				);
+
+				setGamePlayable(
+					false
+				);
+
+				return false;
+			};
+
+		/*
+		 * Update immediately so
+		 * the first visible value
+		 * is 3 instead of waiting
+		 * for the first interval.
+		 */
+		const finished =
+			updateCountdown();
+
+		if (finished) {
+			return () => {
+				if (
+					goTimeout
+				) {
+					clearTimeout(
+						goTimeout
+					);
+				}
+			};
+		}
+
+		const interval =
+			setInterval(
+				() => {
+					if (
+						updateCountdown()
+					) {
+						clearInterval(
+							interval
+						);
+					}
+				},
+				100
+			);
+
+		return () => {
+			clearInterval(
+				interval
+			);
+
+			if (
+				goTimeout
+			) {
+				clearTimeout(
+					goTimeout
+				);
+			}
+		};
+	}, [
+		roomState?.started,
+		roomState?.countdownEndsAt
+	]);
+
+	/*
+	 * GAME LOOP
+	 *
+	 * Gravity starts only once
+	 * countdown reaches GO.
+	 */
+	const {
+		hardDropCurrentPiece,
+		applyPenalty
+	} = useGameLoop({
 		room,
 
 		started:
-			roomState?.started,
+			gamePlayable,
 
 		board,
+
 		setBoard,
 
 		currentPiece,
+
 		setCurrentPiece,
 
 		gameOver,
+
 		setGameOver,
 
 		setScore
 	});
 
+	/*
+	 * CONTROLS
+	 *
+	 * Keyboard is disabled during
+	 * countdown.
+	 */
+	useKeyboard({
+		started:
+			gamePlayable,
+
+		gameOver,
+
+		board,
+
+		currentPiece,
+
+		setCurrentPiece,
+
+		onHardDrop:
+			hardDropCurrentPiece
+	});
+
+	/*
+	 * MULTIPLAYER SPECTRUM
+	 */
 	const {
 		opponents
 	} = useMultiplayer({
 		room,
 
 		started:
-			roomState?.started,
+			gamePlayable,
 
 		board
 	});
 
 	/*
-	 * hostId is now playerId.
+	 * HOST
 	 */
 	const isHost =
 		roomState?.hostId ===
 		playerId;
 
+	/*
+	 * CHANGE GAME MODE
+	 */
+	const handleModeChange =
+		(mode) => {
+			if (
+				!isHost ||
+				roomState?.started ||
+				(
+					roomState?.players
+						?.length ??
+					0
+				) <= 1
+			) {
+				return;
+			}
+
+			socket.emit(
+				"game:mode",
+				{
+					room,
+					mode
+				}
+			);
+		};
+
+	/*
+	 * START
+	 */
 	const handleStart =
 		() => {
-			if (!isHost)
+			if (
+				!isHost ||
+				roomState?.started
+			) {
 				return;
+			}
+
+			/*
+			 * Clean previous local
+			 * round state.
+			 */
+			setBoard(
+				createBoard()
+			);
+
+			setScore(
+				0
+			);
+
+			setGameOver(
+				false
+			);
+
+			setShowRanking(
+				false
+			);
+
+			setIsFading(
+				false
+			);
+
+			setRanking(
+				[]
+			);
+
+			setFinishedMode(
+				null
+			);
+
+			setCountdown(
+				null
+			);
+
+			setGamePlayable(
+				false
+			);
+
+			setCurrentPiece(
+				null
+			);
 
 			socket.emit(
 				"game:start",
@@ -1825,41 +2464,118 @@ function Game() {
 		};
 
 	/*
-	 * Current temporary ranking behavior.
+	 * FINAL RANKING
 	 */
 	useEffect(() => {
-		if (!gameOver)
-			return;
+		let fadeTimeout =
+			null;
 
-		setIsFading(
-			true
+		const onGameFinished =
+			(data) => {
+				console.log(
+					"FINAL RANKING:",
+					data.ranking
+				);
+
+				console.log(
+					"FINISHED MODE:",
+					data.mode
+				);
+
+				setRanking(
+					data.ranking ??
+						[]
+				);
+
+				setFinishedMode(
+					data.mode ??
+						null
+				);
+
+				setGamePlayable(
+					false
+				);
+
+				setIsFading(
+					true
+				);
+
+				fadeTimeout =
+					setTimeout(
+						() => {
+							setShowRanking(
+								true
+							);
+
+							setIsFading(
+								false
+							);
+						},
+						700
+					);
+			};
+
+		socket.on(
+			"game:finished",
+			onGameFinished
 		);
 
-		const timeout =
-			setTimeout(
-				() => {
-					setShowRanking(
-						true
-					);
-
-					setIsFading(
-						false
-					);
-				},
-				700
+		return () => {
+			socket.off(
+				"game:finished",
+				onGameFinished
 			);
 
+			if (
+				fadeTimeout
+			) {
+				clearTimeout(
+					fadeTimeout
+				);
+			}
+		};
+	}, []);
+
+	/*
+	 * RECEIVE PENALTY
+	 */
+	useEffect(() => {
+		const onPenaltyAdd =
+			({
+				count,
+				from
+			}) => {
+				console.log(
+					`Penalty received from ${from}:`,
+					count
+				);
+
+				applyPenalty(
+					count
+				);
+			};
+
+		socket.on(
+			"penalty:add",
+			onPenaltyAdd
+		);
+
 		return () => {
-			clearTimeout(
-				timeout
+			socket.off(
+				"penalty:add",
+				onPenaltyAdd
 			);
 		};
 	}, [
-		gameOver
+		applyPenalty
 	]);
 
 	/*
-	 * Only host can REQUEST restart.
+	 * PLAY AGAIN
+	 *
+	 * Server returns everybody
+	 * to lobby instead of starting
+	 * a new round immediately.
 	 */
 	const handleRestart =
 		() => {
@@ -1875,7 +2591,7 @@ function Game() {
 		};
 
 	/*
-	 * Everybody RECEIVES restart.
+	 * RETURN TO LOBBY
 	 */
 	useEffect(() => {
 		const onGameRestart =
@@ -1900,20 +2616,33 @@ function Game() {
 					false
 				);
 
+				setRanking(
+					[]
+				);
+
+				setFinishedMode(
+					null
+				);
+
+				setCountdown(
+					null
+				);
+
+				setGamePlayable(
+					false
+				);
+
 				setCurrentPiece(
 					null
 				);
 
 				/*
-				 * New sequence was reset
-				 * server side.
+				 * No piece:next here.
+				 *
+				 * We are back in lobby.
+				 * Host chooses mode and
+				 * presses START again.
 				 */
-				socket.emit(
-					"piece:next",
-					{
-						room
-					}
-				);
 			};
 
 		socket.on(
@@ -1928,7 +2657,6 @@ function Game() {
 			);
 		};
 	}, [
-		room,
 		setCurrentPiece
 	]);
 
@@ -1951,8 +2679,7 @@ function Game() {
 			{showRanking ? (
 				<Ranking
 					players={
-						roomState?.players ??
-						[]
+						ranking
 					}
 
 					currentPlayerId={
@@ -1965,6 +2692,10 @@ function Game() {
 
 					onRestart={
 						handleRestart
+					}
+
+					mode={
+						finishedMode
 					}
 				/>
 			) : (
@@ -1993,6 +2724,14 @@ function Game() {
 						onStart={
 							handleStart
 						}
+
+						mode={
+							roomState?.mode
+						}
+
+						onModeChange={
+							handleModeChange
+						}
 					/>
 
 					<GameStatus
@@ -2014,6 +2753,10 @@ function Game() {
 
 						score={
 							score
+						}
+
+						countdown={
+							countdown
 						}
 					/>
 
@@ -2067,28 +2810,96 @@ export default Game;
 ## `client/src/pages/Home/Home.jsx`
 
 ```jsx
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+	useState
+} from "react";
+
+import {
+	useNavigate
+} from "react-router-dom";
+
+const USERNAME_MIN_LENGTH = 3;
+const USERNAME_MAX_LENGTH = 16;
+
+const ROOM_MIN_LENGTH = 3;
+const ROOM_MAX_LENGTH = 20;
+
+const ROOM_REGEX =
+	/^[a-zA-Z0-9_-]+$/;
 
 function Home() {
-	const navigate = useNavigate();
+	const navigate =
+		useNavigate();
 
-	const [player, setPlayer] = useState("");
-	const [room, setRoom] = useState("");
+	const [
+		player,
+		setPlayer
+	] = useState("");
 
-	const handleSubmit = (event) => {
-		event.preventDefault();
+	const [
+		room,
+		setRoom
+	] = useState("");
 
-		const cleanPlayer = player.trim();
-		const cleanRoom = room.trim();
+	const [
+		error,
+		setError
+	] = useState("");
 
-		if (!cleanPlayer || !cleanRoom)
-			return;
+	const handleSubmit =
+		(event) => {
+			event.preventDefault();
 
-		navigate(
-			`/${encodeURIComponent(cleanRoom)}/${encodeURIComponent(cleanPlayer)}`
-		);
-	};
+			const cleanPlayer =
+				player.trim();
+
+			const cleanRoom =
+				room.trim();
+
+			if (
+				cleanPlayer.length <
+					USERNAME_MIN_LENGTH ||
+				cleanPlayer.length >
+					USERNAME_MAX_LENGTH
+			) {
+				setError(
+					`Player name must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`
+				);
+
+				return;
+			}
+
+			if (
+				cleanRoom.length <
+					ROOM_MIN_LENGTH ||
+				cleanRoom.length >
+					ROOM_MAX_LENGTH
+			) {
+				setError(
+					`Room name must be between ${ROOM_MIN_LENGTH} and ${ROOM_MAX_LENGTH} characters`
+				);
+
+				return;
+			}
+
+			if (
+				!ROOM_REGEX.test(
+					cleanRoom
+				)
+			) {
+				setError(
+					"Room can only contain letters, numbers, - and _"
+				);
+
+				return;
+			}
+
+			setError("");
+
+			navigate(
+				`/${encodeURIComponent(cleanRoom)}/${encodeURIComponent(cleanPlayer)}`
+			);
+		};
 
 	return (
 		<main className="home-page">
@@ -2101,7 +2912,10 @@ function Home() {
 					</p>
 
 					<h1 className="home-title">
-						<span>RED</span> TETRIS
+						<span>
+							RED
+						</span>{" "}
+						TETRIS
 					</h1>
 
 					<p className="home-subtitle">
@@ -2111,7 +2925,9 @@ function Home() {
 
 				<form
 					className="home-card"
-					onSubmit={handleSubmit}
+					onSubmit={
+						handleSubmit
+					}
 				>
 					<div className="home-card-header">
 						<span className="panel-dot"></span>
@@ -2128,14 +2944,24 @@ function Home() {
 
 						<input
 							type="text"
-							value={player}
-							onChange={(event) =>
-								setPlayer(
-									event.target.value
-								)
+							value={
+								player
+							}
+							onChange={
+								(event) => {
+									setPlayer(
+										event.target.value
+									);
+
+									setError(
+										""
+									);
+								}
 							}
 							placeholder="Eric"
-							maxLength={20}
+							maxLength={
+								USERNAME_MAX_LENGTH
+							}
 							autoComplete="off"
 						/>
 					</label>
@@ -2147,17 +2973,33 @@ function Home() {
 
 						<input
 							type="text"
-							value={room}
-							onChange={(event) =>
-								setRoom(
-									event.target.value
-								)
+							value={
+								room
+							}
+							onChange={
+								(event) => {
+									setRoom(
+										event.target.value
+									);
+
+									setError(
+										""
+									);
+								}
 							}
 							placeholder="test"
-							maxLength={30}
+							maxLength={
+								ROOM_MAX_LENGTH
+							}
 							autoComplete="off"
 						/>
 					</label>
+
+					{error && (
+						<div className="home-error">
+							{error}
+						</div>
+					)}
 
 					<button
 						className="home-join-button"
@@ -2172,30 +3014,57 @@ function Home() {
 
 					<div className="home-separator">
 						<span></span>
-						<p>CONTROLS</p>
+
+						<p>
+							CONTROLS
+						</p>
+
 						<span></span>
 					</div>
 
 					<div className="home-controls">
 						<div>
-							<kbd>←</kbd>
-							<kbd>→</kbd>
-							<span>MOVE</span>
+							<kbd>
+								←
+							</kbd>
+
+							<kbd>
+								→
+							</kbd>
+
+							<span>
+								MOVE
+							</span>
 						</div>
 
 						<div>
-							<kbd>↑</kbd>
-							<span>ROTATE</span>
+							<kbd>
+								↑
+							</kbd>
+
+							<span>
+								ROTATE
+							</span>
 						</div>
 
 						<div>
-							<kbd>↓</kbd>
-							<span>DROP</span>
+							<kbd>
+								↓
+							</kbd>
+
+							<span>
+								DROP
+							</span>
 						</div>
 
 						<div>
-							<kbd>SPACE</kbd>
-							<span>HARD DROP</span>
+							<kbd>
+								SPACE
+							</kbd>
+
+							<span>
+								HARD DROP
+							</span>
 						</div>
 					</div>
 				</form>
@@ -2218,8 +3087,16 @@ function Ranking({
 	players,
 	currentPlayerId,
 	isHost,
-	onRestart
+	onRestart,
+	mode
 }) {
+	const modeLabel =
+		mode === "battle-royale"
+			? "BATTLE ROYALE"
+			: mode === "points"
+				? "POINTS"
+				: "SOLO";
+
 	return (
 		<section className="ranking-screen">
 			<div className="ranking-card">
@@ -2230,6 +3107,16 @@ function Ranking({
 				<h2 className="ranking-title">
 					RANKING
 				</h2>
+
+				<div className="ranking-mode">
+					<span className="ranking-mode-label">
+						MODE
+					</span>
+
+					<strong className="ranking-mode-value">
+						{modeLabel}
+					</strong>
+				</div>
 
 				<div className="ranking-list">
 					{players.map(
@@ -2250,10 +3137,14 @@ function Ranking({
 								</span>
 
 								<span className="ranking-player">
-									{
-										player.name
-									}
+									{player.name}
 								</span>
+
+								{mode === "points" && (
+									<span className="ranking-score">
+										{player.score ?? 0}
+									</span>
+								)}
 
 								{player.isHost && (
 									<span className="ranking-host">
@@ -3354,6 +4245,134 @@ kbd {
 	background:
 		rgba(255, 64, 87, 0.55);
 }
+
+/* ================================= */
+/* GAME MODE */
+/* ================================= */
+
+.game-mode-block {
+	margin-top: 16px;
+	padding-top: 14px;
+
+	border-top: 1px solid #222c40;
+}
+
+.game-mode-label {
+	display: block;
+
+	margin-bottom: 9px;
+
+	color: #65748e;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1.5px;
+
+	text-transform: uppercase;
+}
+
+.game-mode-buttons {
+	display: flex;
+	flex-direction: column;
+
+	gap: 7px;
+}
+
+.mode-button {
+	width: 100%;
+
+	padding: 9px 10px;
+
+	border: 1px solid #29354c;
+	border-radius: 7px;
+
+	background: #0a0e17;
+
+	color: #738197;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	cursor: pointer;
+
+	transition:
+		border-color 0.15s ease,
+		background 0.15s ease,
+		color 0.15s ease,
+		transform 0.15s ease;
+}
+
+.mode-button:hover {
+	border-color: #3a4862;
+
+	color: #dce5f3;
+
+	transform: translateY(-1px);
+}
+
+.mode-active {
+	border-color:
+		rgba(255, 64, 87, 0.6);
+
+	background:
+		rgba(255, 64, 87, 0.08);
+
+	color: #ff6477;
+
+	box-shadow:
+		0 0 14px
+		rgba(255, 64, 87, 0.08);
+}
+
+.mode-active:hover {
+	border-color:
+		rgba(255, 64, 87, 0.8);
+
+	color: #ff7a8b;
+}
+
+.game-mode-value {
+	display: block;
+
+	padding: 9px 10px;
+
+	border: 1px solid
+		rgba(255, 64, 87, 0.3);
+	border-radius: 7px;
+
+	background:
+		rgba(255, 64, 87, 0.05);
+
+	color: #ff6477;
+
+	font-size: 10px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	text-align: center;
+}
+
+.cell-P {
+	background:
+		linear-gradient(
+			135deg,
+			#ff304f,
+			#a9001c
+		);
+
+	border:
+		1px solid #ff7188;
+
+	box-shadow:
+		inset 0 0 5px
+			rgba(255, 255, 255, 0.18),
+		0 0 5px
+			rgba(255, 48, 79, 0.25);
+}
 ```
 
 ## `client/src/styles/home.css`
@@ -3710,6 +4729,27 @@ kbd {
 		grid-template-columns: 1fr;
 	}
 }
+
+.home-error {
+	margin-top: 4px;
+
+	padding: 9px 10px;
+
+	border: 1px solid
+		rgba(255, 64, 87, 0.35);
+
+	border-radius: 6px;
+
+	background:
+		rgba(255, 64, 87, 0.06);
+
+	color: #ff6477;
+
+	font-size: 10px;
+	font-weight: 800;
+
+	letter-spacing: 0.4px;
+}
 ```
 
 ## `client/src/styles/ranking.css`
@@ -3783,7 +4823,8 @@ kbd {
 
 	grid-template-columns:
 		52px
-		1fr
+		minmax(0, 1fr)
+		auto
 		auto;
 
 	align-items: center;
@@ -3797,7 +4838,6 @@ kbd {
 
 	background: #0a0e17;
 }
-
 .ranking-current {
 	border-color:
 		rgba(255, 64, 87, 0.45);
@@ -3806,18 +4846,38 @@ kbd {
 		rgba(255, 64, 87, 0.05);
 }
 
+
 .ranking-position {
 	color: #ff4057;
 
 	font-size: 13px;
 	font-weight: 900;
+
+	white-space: nowrap;
 }
 
 .ranking-player {
+	min-width: 0;
+
 	color: #e8edf6;
 
 	font-size: 14px;
 	font-weight: 800;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ranking-score {
+	color: #ffffff;
+
+	font-size: 12px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	white-space: nowrap;
 }
 
 .ranking-host {
@@ -3832,6 +4892,8 @@ kbd {
 
 	font-size: 8px;
 	font-weight: 900;
+
+	white-space: nowrap;
 }
 
 .ranking-actions {
@@ -3898,6 +4960,52 @@ kbd {
 		transform: translateY(0);
 	}
 }
+
+.ranking-mode {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	gap: 10px;
+
+	margin-bottom: 20px;
+}
+
+.ranking-mode-label {
+	color: #65748e;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 2px;
+}
+
+.ranking-mode-value {
+	padding: 5px 9px;
+
+	border: 1px solid
+		rgba(255, 64, 87, 0.35);
+	border-radius: 6px;
+
+	background:
+		rgba(255, 64, 87, 0.06);
+
+	color: #ff6477;
+
+	font-size: 10px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+}
+
+.ranking-score {
+	color: #ffffff;
+
+	font-size: 12px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+}
 ```
 
 ## `client/src/utils/playerIdentity.js`
@@ -3905,6 +5013,26 @@ kbd {
 ```javascript
 const PLAYER_ID_KEY =
 	"red-tetris-player-id";
+
+function generatePlayerId() {
+	if (
+		globalThis.crypto &&
+		typeof globalThis.crypto.randomUUID ===
+			"function"
+	) {
+		return globalThis.crypto.randomUUID();
+	}
+
+	return [
+		Date.now().toString(36),
+		Math.random()
+			.toString(36)
+			.slice(2),
+		Math.random()
+			.toString(36)
+			.slice(2)
+	].join("-");
+}
 
 export function getPlayerId() {
 	let playerId =
@@ -3914,7 +5042,7 @@ export function getPlayerId() {
 
 	if (!playerId) {
 		playerId =
-			crypto.randomUUID();
+			generatePlayerId();
 
 		sessionStorage.setItem(
 			PLAYER_ID_KEY,
@@ -4081,18 +5209,9 @@ class Game {
 		this.roomName =
 			roomName;
 
-		/*
-		 * Map:
-		 *
-		 * playerId -> Player
-		 */
 		this.players =
 			new Map();
 
-		/*
-		 * hostId is now a PLAYER ID,
-		 * not a socket ID.
-		 */
 		this.hostId =
 			null;
 
@@ -4101,13 +5220,33 @@ class Game {
 
 		this.pieces =
 			[];
+
+		this.eliminationOrder =
+			[];
+
+		/*
+		 * Mode selected by host
+		 * before the game starts.
+		 */
+		this.mode =
+			"battle-royale";
+
+		/*
+		 * Actual mode used by
+		 * the current round.
+		 *
+		 * "solo"
+		 * "battle-royale"
+		 * "points"
+		 */
+		this.activeMode =
+			null;
+
+		this.countdownEndsAt =
+			null;
 	}
 
 	addPlayer(player) {
-		/*
-		 * Already registered:
-		 * update network connection.
-		 */
 		const existingPlayer =
 			this.players.get(
 				player.id
@@ -4129,9 +5268,6 @@ class Game {
 			player
 		);
 
-		/*
-		 * First player becomes host.
-		 */
 		if (
 			this.hostId === null
 		) {
@@ -4168,9 +5304,6 @@ class Game {
 	}
 
 	assignNewHost() {
-		/*
-		 * Reset host flags first.
-		 */
 		for (
 			const player
 			of this.players.values()
@@ -4205,9 +5338,7 @@ class Game {
 		);
 	}
 
-	findPlayerBySocket(
-		socketId
-	) {
+	findPlayerBySocket(socketId) {
 		for (
 			const player
 			of this.players.values()
@@ -4226,6 +5357,85 @@ class Game {
 	getPlayers() {
 		return Array.from(
 			this.players.values()
+		);
+	}
+
+	setMode(mode) {
+		if (
+			mode !==
+				"battle-royale" &&
+			mode !==
+				"points"
+		) {
+			return false;
+		}
+
+		this.mode =
+			mode;
+
+		return true;
+	}
+
+	markPlayerDead(playerId) {
+		const player =
+			this.players.get(
+				playerId
+			);
+
+		if (
+			!player ||
+			!player.alive
+		) {
+			return;
+		}
+
+		player.alive =
+			false;
+
+		this.eliminationOrder.push(
+			playerId
+		);
+	}
+
+	getAlivePlayers() {
+		return this
+			.getPlayers()
+			.filter(
+				(player) =>
+					player.alive
+			);
+	}
+
+	isFinished() {
+		return (
+			this
+				.getAlivePlayers()
+				.length ===
+			0
+		);
+	}
+
+	getRanking() {
+		return [
+			...this.eliminationOrder
+		]
+			.reverse()
+			.map(
+				(playerId) =>
+					this.players.get(
+						playerId
+					)
+			)
+			.filter(Boolean);
+	}
+
+	getPointsRanking() {
+		return [
+			...this.getPlayers()
+		].sort(
+			(a, b) =>
+				b.score -
+				a.score
 		);
 	}
 
@@ -4261,7 +5471,8 @@ class Game {
 	generateSequence(
 		bagCount = 20
 	) {
-		this.pieces = [];
+		this.pieces =
+			[];
 
 		for (
 			let i = 0;
@@ -4295,7 +5506,8 @@ class Game {
 		return (
 			this.pieces[
 				player.pieceIndex
-			] ?? null
+			] ??
+			null
 		);
 	}
 }
@@ -4325,6 +5537,7 @@ class Player {
 		this.alive = true;
 		this.pieceIndex = 0;
 		this.spectrum = [];
+		this.score = 0;
 
 		this.isHost = false;
 	}
@@ -4449,6 +5662,21 @@ const PORT =
 const DISCONNECT_GRACE_MS =
 	3000;
 
+const USERNAME_MIN_LENGTH =
+	3;
+
+const USERNAME_MAX_LENGTH =
+	16;
+
+const ROOM_MIN_LENGTH =
+	3;
+
+const ROOM_MAX_LENGTH =
+	20;
+
+const ROOM_REGEX =
+	/^[a-zA-Z0-9_-]+$/;
+
 const server =
 	http.createServer(
 		app
@@ -4462,9 +5690,6 @@ const io =
 const gameManager =
 	new GameManager();
 
-/*
- * playerId -> timeout
- */
 const disconnectTimers =
 	new Map();
 
@@ -4505,6 +5730,16 @@ function cancelDisconnect(
 function buildRoomState(
 	game
 ) {
+	const players =
+		game.getPlayers();
+
+	const mode =
+		game.started
+			? game.activeMode
+			: players.length > 1
+				? game.mode
+				: "solo";
+
 	return {
 		room:
 			game.roomName,
@@ -4512,31 +5747,34 @@ function buildRoomState(
 		started:
 			game.started,
 
-		/*
-		 * Player ID, not socket ID.
-		 */
 		hostId:
 			game.hostId,
 
+		mode,
+
+		countdownEndsAt:
+			game.countdownEndsAt,
+
 		players:
-			game
-				.getPlayers()
-				.map(
-					(player) => ({
-						playerId:
-							player.id,
+			players.map(
+				(player) => ({
+					playerId:
+						player.id,
 
-						name:
-							player.name,
+					name:
+						player.name,
 
-						isHost:
-							player.id ===
-							game.hostId,
+					isHost:
+						player.id ===
+						game.hostId,
 
-						alive:
-							player.alive
-					})
-				)
+					alive:
+						player.alive,
+
+					score:
+						player.score
+				})
+			)
 	};
 }
 
@@ -4551,6 +5789,109 @@ function emitRoomState(
 			game
 		)
 	);
+}
+
+function buildRanking(
+	game,
+	players
+) {
+	return players.map(
+		(
+			player,
+			index
+		) => ({
+			position:
+				index + 1,
+
+			playerId:
+				player.id,
+
+			name:
+				player.name,
+
+			score:
+				player.score,
+
+			isHost:
+				player.id ===
+				game.hostId
+		})
+	);
+}
+
+function finishGame(
+	game,
+	rankingPlayers
+) {
+	game.started =
+		false;
+
+	game.countdownEndsAt =
+		null;
+
+	const ranking =
+		buildRanking(
+			game,
+			rankingPlayers
+		);
+
+	io.to(
+		game.roomName
+	).emit(
+		"game:finished",
+		{
+			mode:
+				game.activeMode,
+
+			ranking
+		}
+	);
+
+	emitRoomState(
+		game
+	);
+
+	console.log(
+		`Game ${game.roomName} finished (${game.activeMode})`
+	);
+}
+
+function validateUsername(
+	username
+) {
+	if (
+		username.length <
+			USERNAME_MIN_LENGTH ||
+		username.length >
+			USERNAME_MAX_LENGTH
+	) {
+		return `Username must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`;
+	}
+
+	return null;
+}
+
+function validateRoom(
+	room
+) {
+	if (
+		room.length <
+			ROOM_MIN_LENGTH ||
+		room.length >
+			ROOM_MAX_LENGTH
+	) {
+		return `Room name must be between ${ROOM_MIN_LENGTH} and ${ROOM_MAX_LENGTH} characters`;
+	}
+
+	if (
+		!ROOM_REGEX.test(
+			room
+		)
+	) {
+		return "Room can only contain letters, numbers, - and _";
+	}
+
+	return null;
 }
 
 io.on(
@@ -4571,17 +5912,100 @@ io.on(
 				playerId
 			}) => {
 				if (
-					!room ||
-					!player ||
-					!playerId
+					typeof room !==
+						"string" ||
+					typeof player !==
+						"string" ||
+					typeof playerId !==
+						"string"
 				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								"Invalid room or username"
+						}
+					);
+
 					return;
+				}
+
+				const cleanRoom =
+					room.trim();
+
+				const cleanPlayer =
+					player.trim();
+
+				const usernameError =
+					validateUsername(
+						cleanPlayer
+					);
+
+				if (
+					usernameError
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								usernameError
+						}
+					);
+
+					return;
+				}
+
+				const roomError =
+					validateRoom(
+						cleanRoom
+					);
+
+				if (
+					roomError
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								roomError
+						}
+					);
+
+					return;
+				}
+
+				if (
+					playerId.length >
+					128
+				) {
+					socket.emit(
+						"room:error",
+						{
+							message:
+								"Invalid player id"
+						}
+					);
+
+					return;
+				}
+
+				const previousRoom =
+					socket.data.room;
+
+				if (
+					previousRoom &&
+					previousRoom !==
+						cleanRoom
+				) {
+					socket.leave(
+						previousRoom
+					);
 				}
 
 				const game =
 					gameManager
 						.getOrCreateGame(
-							room
+							cleanRoom
 						);
 
 				const existingPlayer =
@@ -4590,10 +6014,10 @@ io.on(
 					);
 
 				/*
-				 * A new player cannot join
-				 * after game start.
+				 * New players cannot join
+				 * while a round is running.
 				 *
-				 * An existing player CAN
+				 * Existing players can
 				 * reconnect.
 				 */
 				if (
@@ -4612,35 +6036,37 @@ io.on(
 				}
 
 				cancelDisconnect(
-					room,
+					cleanRoom,
 					playerId
 				);
-
-				let roomPlayer;
 
 				if (
 					existingPlayer
 				) {
-					existingPlayer
-						.reconnect(
-							socket.id
-						);
+					const isRealReconnect =
+						existingPlayer.socketId !==
+						socket.id;
+
+					existingPlayer.reconnect(
+						socket.id
+					);
 
 					existingPlayer.name =
-						player;
+						cleanPlayer;
 
-					roomPlayer =
-						existingPlayer;
-
-					console.log(
-						`Player ${player} reconnected to ${room}`
-					);
+					if (
+						isRealReconnect
+					) {
+						console.log(
+							`Player ${cleanPlayer} reconnected to ${cleanRoom}`
+						);
+					}
 				} else {
-					roomPlayer =
+					const roomPlayer =
 						new Player(
 							playerId,
 							socket.id,
-							player
+							cleanPlayer
 						);
 
 					game.addPlayer(
@@ -4648,20 +6074,16 @@ io.on(
 					);
 
 					console.log(
-						`Player ${player} joined room ${room}`
+						`Player ${cleanPlayer} joined room ${cleanRoom}`
 					);
 				}
 
 				socket.join(
-					room
+					cleanRoom
 				);
 
-				/*
-				 * Store useful identity
-				 * directly on the socket.
-				 */
 				socket.data.room =
-					room;
+					cleanRoom;
 
 				socket.data.playerId =
 					playerId;
@@ -4673,7 +6095,68 @@ io.on(
 		);
 
 		/*
-		 * START GAME
+		 * GAME MODE
+		 */
+		socket.on(
+			"game:mode",
+			({
+				room,
+				mode
+			}) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (!player)
+					return;
+
+				if (
+					game.hostId !==
+					player.id
+				) {
+					return;
+				}
+
+				if (
+					game.getPlayers()
+						.length <= 1
+				) {
+					return;
+				}
+
+				if (
+					!game.setMode(
+						mode
+					)
+				) {
+					return;
+				}
+
+				emitRoomState(
+					game
+				);
+
+				console.log(
+					`Game ${room} mode: ${mode}`
+				);
+			}
+		);
+
+		/*
+		 * START
 		 */
 		socket.on(
 			"game:start",
@@ -4683,8 +6166,12 @@ io.on(
 						room
 					);
 
-				if (!game)
+				if (
+					!game ||
+					game.started
+				) {
 					return;
+				}
 
 				const player =
 					game.findPlayerBySocket(
@@ -4703,8 +6190,26 @@ io.on(
 
 				game.generateSequence();
 
+				game.activeMode =
+					game.getPlayers()
+						.length > 1
+						? game.mode
+						: "solo";
+
 				game.started =
 					true;
+
+				/*
+				 * Shared start timestamp.
+				 *
+				 * Clients display:
+				 * 3 -> 2 -> 1 -> GO
+				 */
+				game.countdownEndsAt =
+					Date.now() + 3000;
+
+				game.eliminationOrder =
+					[];
 
 				for (
 					const roomPlayer
@@ -4718,6 +6223,9 @@ io.on(
 
 					roomPlayer.spectrum =
 						[];
+
+					roomPlayer.score =
+						0;
 				}
 
 				emitRoomState(
@@ -4725,8 +6233,62 @@ io.on(
 				);
 
 				console.log(
-					`Game ${room} started by ${player.name}`
+					`Game ${room} started by ${player.name} (${game.activeMode})`
 				);
+			}
+		);
+
+		/*
+		 * SCORE
+		 */
+		socket.on(
+			"score:update",
+			({
+				room,
+				score
+			}) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (
+					!player ||
+					!player.alive
+				) {
+					return;
+				}
+
+				const value =
+					Number(
+						score
+					);
+
+				if (
+					!Number.isFinite(
+						value
+					) ||
+					value < 0
+				) {
+					return;
+				}
+
+				player.score =
+					Math.floor(
+						value
+					);
 			}
 		);
 
@@ -4741,16 +6303,24 @@ io.on(
 						room
 					);
 
-				if (!game)
+				if (
+					!game ||
+					!game.started
+				) {
 					return;
+				}
 
 				const player =
 					game.findPlayerBySocket(
 						socket.id
 					);
 
-				if (!player)
+				if (
+					!player ||
+					!player.alive
+				) {
 					return;
+				}
 
 				const piece =
 					game.getNextPiece(
@@ -4780,6 +6350,208 @@ io.on(
 		);
 
 		/*
+		 * PLAYER DEAD
+		 */
+		socket.on(
+			"player:dead",
+			({ room }) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const player =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (
+					!player ||
+					!player.alive
+				) {
+					return;
+				}
+
+				game.markPlayerDead(
+					player.id
+				);
+
+				console.log(
+					`Player ${player.name} finished with ${player.score} points`
+				);
+
+				emitRoomState(
+					game
+				);
+
+				/*
+				 * BATTLE ROYALE
+				 *
+				 * Last alive wins immediately.
+				 */
+				if (
+					game.activeMode ===
+					"battle-royale"
+				) {
+					const alivePlayers =
+						game.getAlivePlayers();
+
+					if (
+						alivePlayers.length >
+						1
+					) {
+						return;
+					}
+
+					const winner =
+						alivePlayers[0];
+
+					const rankingPlayers = [
+						...(winner
+							? [winner]
+							: []),
+
+						...game.getRanking()
+					];
+
+					finishGame(
+						game,
+						rankingPlayers
+					);
+
+					return;
+				}
+
+				/*
+				 * POINTS
+				 *
+				 * Everybody must finish.
+				 */
+				if (
+					game.activeMode ===
+					"points"
+				) {
+					if (
+						!game.isFinished()
+					) {
+						return;
+					}
+
+					finishGame(
+						game,
+						game.getPointsRanking()
+					);
+
+					return;
+				}
+
+				/*
+				 * SOLO
+				 */
+				if (
+					!game.isFinished()
+				) {
+					return;
+				}
+
+				finishGame(
+					game,
+					game.getRanking()
+				);
+			}
+		);
+
+		/*
+		 * PENALTY
+		 */
+		socket.on(
+			"penalty:send",
+			({
+				room,
+				count
+			}) => {
+				const game =
+					gameManager.getGame(
+						room
+					);
+
+				if (
+					!game ||
+					!game.started
+				) {
+					return;
+				}
+
+				const attacker =
+					game.findPlayerBySocket(
+						socket.id
+					);
+
+				if (
+					!attacker ||
+					!attacker.alive
+				) {
+					return;
+				}
+
+				const penaltyCount =
+					Math.max(
+						0,
+						Math.min(
+							3,
+							Number(
+								count
+							) || 0
+						)
+					);
+
+				if (
+					penaltyCount ===
+					0
+				) {
+					return;
+				}
+
+				for (
+					const target
+					of game.players.values()
+				) {
+					if (
+						target.id ===
+							attacker.id ||
+						!target.alive
+					) {
+						continue;
+					}
+
+					io.to(
+						target.socketId
+					).emit(
+						"penalty:add",
+						{
+							count:
+								penaltyCount,
+
+							from:
+								attacker.name
+						}
+					);
+				}
+
+				console.log(
+					`${attacker.name} sent ${penaltyCount} penalty line(s)`
+				);
+			}
+		);
+
+		/*
 		 * SPECTRUM
 		 */
 		socket.on(
@@ -4793,16 +6565,24 @@ io.on(
 						room
 					);
 
-				if (!game)
+				if (
+					!game ||
+					!game.started
+				) {
 					return;
+				}
 
 				const player =
 					game.findPlayerBySocket(
 						socket.id
 					);
 
-				if (!player)
+				if (
+					!player ||
+					!player.alive
+				) {
 					return;
+				}
 
 				player.spectrum =
 					spectrum;
@@ -4826,7 +6606,15 @@ io.on(
 		);
 
 		/*
-		 * RESTART
+		 * RETURN TO LOBBY
+		 *
+		 * PLAY AGAIN no longer
+		 * starts another round.
+		 *
+		 * Host returns everyone
+		 * to the lobby, where a
+		 * mode can be selected
+		 * again.
 		 */
 		socket.on(
 			"game:restart",
@@ -4847,9 +6635,6 @@ io.on(
 				if (!player)
 					return;
 
-				/*
-				 * Only host can restart.
-				 */
 				if (
 					game.hostId !==
 					player.id
@@ -4857,10 +6642,17 @@ io.on(
 					return;
 				}
 
-				game.generateSequence();
-
 				game.started =
-					true;
+					false;
+
+				game.activeMode =
+					null;
+
+				game.countdownEndsAt =
+					null;
+
+				game.eliminationOrder =
+					[];
 
 				for (
 					const roomPlayer
@@ -4874,9 +6666,14 @@ io.on(
 
 					roomPlayer.spectrum =
 						[];
+
+					roomPlayer.score =
+						0;
 				}
 
-				io.to(room).emit(
+				io.to(
+					room
+				).emit(
 					"game:restart"
 				);
 
@@ -4885,7 +6682,7 @@ io.on(
 				);
 
 				console.log(
-					`Game ${room} restarted by ${player.name}`
+					`Game ${room} returned to lobby by ${player.name}`
 				);
 			}
 		);
@@ -4930,12 +6727,9 @@ io.on(
 					return;
 
 				/*
-				 * Important:
-				 *
-				 * If this player already
-				 * reconnected with another
-				 * socket, this old disconnect
-				 * must do nothing.
+				 * Ignore stale socket
+				 * when player already
+				 * reconnected.
 				 */
 				if (
 					player.socketId !==
@@ -5016,7 +6810,9 @@ io.on(
 								currentGame
 							);
 
-							if (wasHost) {
+							if (
+								wasHost
+							) {
 								console.log(
 									`New host for ${room}: ${currentGame.hostId}`
 								);

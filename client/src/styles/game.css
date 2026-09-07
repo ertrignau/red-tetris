@@ -1142,3 +1142,127 @@ kbd {
 
 	text-align: center;
 }
+
+.cell-P {
+	position: relative;
+
+	background:
+		linear-gradient(
+			145deg,
+			#ff4057 0%,
+			#e32f49 50%,
+			#9c1c32 100%
+		);
+
+	border:
+		1px solid #ff6b7e;
+
+	box-shadow:
+		inset 2px 2px 0
+			rgba(255, 255, 255, 0.12),
+
+		inset -2px -2px 0
+			rgba(70, 0, 15, 0.35),
+
+		0 0 3px
+			rgba(255, 64, 87, 0.25);
+
+	overflow: hidden;
+}
+
+.cell-P::before {
+	content: "";
+
+	position: absolute;
+
+	inset: 3px;
+
+	border:
+		1px solid
+		rgba(255, 180, 190, 0.25);
+
+	background:
+		linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.07),
+			transparent 50%,
+			rgba(0, 0, 0, 0.08)
+		);
+
+	pointer-events: none;
+}
+
+.cell-P::after {
+	background:
+		rgba(255, 220, 225, 0.35);
+
+	box-shadow:
+		0 0 2px
+		rgba(255, 64, 87, 0.25);
+}
+
+/* ================================= */
+/* START COUNTDOWN */
+/* ================================= */
+
+.countdown-overlay {
+	position: absolute;
+	inset: 7px;
+
+	z-index: 5;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+
+	gap: 10px;
+
+	border-radius: 6px;
+
+	background:
+		rgba(5, 8, 14, 0.82);
+
+	backdrop-filter:
+		blur(2px);
+}
+
+.countdown-ready {
+	color: #7c899e;
+
+	font-size: 10px;
+	font-weight: 900;
+
+	letter-spacing: 3px;
+}
+
+.countdown-value {
+	color: #ff4057;
+
+	font-size: 72px;
+	font-weight: 900;
+
+	line-height: 1;
+
+	letter-spacing: 3px;
+
+	text-shadow:
+		0 0 30px
+		rgba(255, 64, 87, 0.5);
+
+	animation:
+		countdown-pop
+		250ms ease-out;
+}
+
+@keyframes countdown-pop {
+	from {
+		opacity: 0;
+		transform: scale(1.25);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}

@@ -2,10 +2,12 @@ import Board from "../Board/Board.jsx";
 
 function GameStatus({
 	started,
+	finishing,
 	board,
 	currentPiece,
 	gameOver,
-	score
+	score,
+	countdown
 }) {
 	return (
 		<section className="board-section">
@@ -22,20 +24,38 @@ function GameStatus({
 
 				{gameOver
 					? "GAME OVER"
-					: started
-						? "GAME IN PROGRESS"
-						: "WAITING FOR HOST"}
+					: finishing
+						? "MATCH COMPLETE"
+						: countdown
+							? "GET READY"
+							: started
+								? "GAME IN PROGRESS"
+								: "WAITING FOR HOST"}
 			</div>
 
 			<div className="board-frame">
 				{started ? (
 					<>
 						<Board
-							board={board}
+							board={
+								board
+							}
 							piece={
 								currentPiece
 							}
 						/>
+
+						{countdown && (
+							<div className="countdown-overlay">
+								<span className="countdown-ready">
+									GET READY
+								</span>
+
+								<strong className="countdown-value">
+									{countdown}
+								</strong>
+							</div>
+						)}
 
 						{gameOver && (
 							<div className="game-over-overlay">

@@ -17,11 +17,15 @@ function useSocket(
 	room,
 	player
 ) {
-	const [roomState, setRoomState] =
-		useState(null);
+	const [
+		roomState,
+		setRoomState
+	] = useState(null);
 
-	const [error, setError] =
-		useState(null);
+	const [
+		error,
+		setError
+	] = useState(null);
 
 	const [
 		currentPiece,
@@ -34,12 +38,14 @@ function useSocket(
 	] = useState(null);
 
 	/*
-	 * Stable for this browser tab.
+	 * Stable identifier for
+	 * this browser tab.
 	 */
-	const [playerId] =
-		useState(
-			() => getPlayerId()
-		);
+	const [
+		playerId
+	] = useState(
+		() => getPlayerId()
+	);
 
 	useEffect(() => {
 		const joinRoom =
@@ -167,23 +173,20 @@ function useSocket(
 		playerId
 	]);
 
-	useEffect(() => {
-		if (
-			!roomState?.started
-		) {
-			return;
-		}
-
-		socket.emit(
-			"piece:next",
-			{
-				room
-			}
-		);
-	}, [
-		roomState?.started,
-		room
-	]);
+	/*
+	 * IMPORTANT:
+	 *
+	 * We do NOT automatically request
+	 * a piece when roomState.started
+	 * becomes true.
+	 *
+	 * Game.jsx decides if we must:
+	 * - restore a saved session
+	 * - or request the first piece
+	 *
+	 * This prevents refresh from
+	 * consuming an extra server piece.
+	 */
 
 	return {
 		playerId,
@@ -195,7 +198,8 @@ function useSocket(
 		currentPiece,
 		setCurrentPiece,
 
-		nextPiece
+		nextPiece,
+		setNextPiece
 	};
 }
 

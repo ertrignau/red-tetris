@@ -66,7 +66,8 @@
 
 	grid-template-columns:
 		52px
-		1fr
+		minmax(0, 1fr)
+		auto
 		auto;
 
 	align-items: center;
@@ -80,7 +81,6 @@
 
 	background: #0a0e17;
 }
-
 .ranking-current {
 	border-color:
 		rgba(255, 64, 87, 0.45);
@@ -89,18 +89,38 @@
 		rgba(255, 64, 87, 0.05);
 }
 
+
 .ranking-position {
 	color: #ff4057;
 
 	font-size: 13px;
 	font-weight: 900;
+
+	white-space: nowrap;
 }
 
 .ranking-player {
+	min-width: 0;
+
 	color: #e8edf6;
 
 	font-size: 14px;
 	font-weight: 800;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ranking-score {
+	color: #ffffff;
+
+	font-size: 12px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	white-space: nowrap;
 }
 
 .ranking-host {
@@ -115,6 +135,8 @@
 
 	font-size: 8px;
 	font-weight: 900;
+
+	white-space: nowrap;
 }
 
 .ranking-actions {

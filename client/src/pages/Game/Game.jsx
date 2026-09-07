@@ -1,5 +1,6 @@
 import {
 	useEffect,
+	useRef,
 	useState
 } from "react";
 
@@ -14,8 +15,10 @@ import {
 } from "../../game/board.js";
 
 import {
-	addPenaltyLines
-} from "../../game/penalty.js";
+	clearGameSession,
+	loadGameSession,
+	saveGameSession
+} from "../../utils/gameSession.js";
 
 import useSocket from "../../hooks/useSocket.js";
 import useKeyboard from "../../hooks/useKeyboard.js";
@@ -63,6 +66,11 @@ function Game() {
 	] = useState(false);
 
 	const [
+		isFinishing,
+		setIsFinishing
+	] = useState(false);
+
+	const [
 		ranking,
 		setRanking
 	] = useState([]);
@@ -72,36 +80,382 @@ function Game() {
 		setFinishedMode
 	] = useState(null);
 
+	const [
+		countdown,
+		setCountdown
+	] = useState(null);
+
+	const [
+		gamePlayable,
+		setGamePlayable
+	] = useState(false);
+
+	const [
+		sessionReady,
+		setSessionReady
+	] = useState(false);
+
+	/*
+	 * Prevent the same server round
+	 * from being initialized twice.
+	 */
+	const initializedRoundRef =
+		useRef(null);
+
 	const {
 		playerId,
 		roomState,
 		error,
 		currentPiece,
 		setCurrentPiece,
-		nextPiece
+		nextPiece,
+		setNextPiece
 	} = useSocket(
 		room,
 		player
 	);
 
-	useKeyboard({
-		started:
-			roomState?.started,
+	/*
+	 * =================================
+	 * ROUND INITIALIZATION / REFRESH
+	 * =================================
+	 *
+	 * If the server roundId matches
+	 * our sessionStorage snapshot,
+	 * restore the current game.
+	 *
+	 * Otherwise this is a new round.
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			roomState?.roundId ===
+				undefined ||
+			roomState?.roundId ===
+				null
+		) {
+			initializedRoundRef.current =
+				null;
 
-		gameOver,
+			setSessionReady(
+				false
+			);
 
+			return;
+		}
+
+		const roundId =
+			roomState.roundId;
+
+		/*
+		 * Important with React
+		 * StrictMode.
+		 */
+		if (
+			initializedRoundRef.current ===
+			roundId
+		) {
+			return;
+		}
+
+		initializedRoundRef.current =
+			roundId;
+
+		const savedSession =
+			loadGameSession(
+				room,
+				playerId
+			);
+
+		/*
+		 * REFRESH / RECONNECT
+		 */
+		if (
+			savedSession &&
+			savedSession.roundId ===
+				roundId
+		) {
+			console.log(
+				"Restoring game session:",
+				roundId
+			);
+
+			setBoard(
+				savedSession.board ??
+					createBoard()
+			);
+
+			setScore(
+				savedSession.score ??
+					0
+			);
+
+			setGameOver(
+				Boolean(
+					savedSession.gameOver
+				)
+			);
+
+			setCurrentPiece(
+				savedSession.currentPiece ??
+					null
+			);
+
+			setNextPiece(
+				savedSession.nextPiece ??
+					null
+			);
+
+			setSessionReady(
+				true
+			);
+
+			return;
+		}
+
+		/*
+		 * NEW ROUND
+		 */
+		console.log(
+			"Initializing new round:",
+			roundId
+		);
+
+		setBoard(
+			createBoard()
+		);
+
+		setScore(
+			0
+		);
+
+		setGameOver(
+			false
+		);
+
+		setCurrentPiece(
+			null
+		);
+
+		setNextPiece(
+			null
+		);
+
+		clearGameSession(
+			room,
+			playerId
+		);
+
+		setSessionReady(
+			true
+		);
+
+		/*
+		 * Only request the first
+		 * piece for a genuinely
+		 * new round.
+		 */
+		socket.emit(
+			"piece:next",
+			{
+				room
+			}
+		);
+	}, [
+		room,
+		playerId,
+		roomState?.started,
+		roomState?.roundId,
+		setCurrentPiece,
+		setNextPiece
+	]);
+
+	/*
+	 * =================================
+	 * SAVE ROUND STATE
+	 * =================================
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!sessionReady ||
+			roomState?.roundId ===
+				undefined ||
+			roomState?.roundId ===
+				null
+		) {
+			return;
+		}
+
+		/*
+		 * Avoid saving the tiny empty
+		 * state before the first piece
+		 * arrives.
+		 */
+		if (
+			!currentPiece &&
+			!gameOver
+		) {
+			return;
+		}
+
+		saveGameSession(
+			room,
+			playerId,
+			{
+				roundId:
+					roomState.roundId,
+
+				board,
+
+				score,
+
+				currentPiece,
+
+				nextPiece,
+
+				gameOver
+			}
+		);
+	}, [
+		room,
+		playerId,
+		roomState?.started,
+		roomState?.roundId,
+		sessionReady,
 		board,
-
+		score,
 		currentPiece,
+		nextPiece,
+		gameOver
+	]);
 
-		setCurrentPiece
-	});
+	/*
+	 * =================================
+	 * COUNTDOWN
+	 * =================================
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!roomState?.countdownEndsAt
+		) {
+			setCountdown(
+				null
+			);
 
-	useGameLoop({
+			setGamePlayable(
+				false
+			);
+
+			return;
+		}
+
+		let goTimeout =
+			null;
+
+		const updateCountdown =
+			() => {
+				const remaining =
+					roomState.countdownEndsAt -
+					Date.now();
+
+				if (
+					remaining <= 0
+				) {
+					setCountdown(
+						"GO"
+					);
+
+					setGamePlayable(
+						true
+					);
+
+					goTimeout =
+						setTimeout(
+							() => {
+								setCountdown(
+									null
+								);
+							},
+							500
+						);
+
+					return true;
+				}
+
+				setCountdown(
+					Math.ceil(
+						remaining /
+							1000
+					)
+				);
+
+				setGamePlayable(
+					false
+				);
+
+				return false;
+			};
+
+		const finished =
+			updateCountdown();
+
+		if (finished) {
+			return () => {
+				if (
+					goTimeout
+				) {
+					clearTimeout(
+						goTimeout
+					);
+				}
+			};
+		}
+
+		const interval =
+			setInterval(
+				() => {
+					if (
+						updateCountdown()
+					) {
+						clearInterval(
+							interval
+						);
+					}
+				},
+				100
+			);
+
+		return () => {
+			clearInterval(
+				interval
+			);
+
+			if (
+				goTimeout
+			) {
+				clearTimeout(
+					goTimeout
+				);
+			}
+		};
+	}, [
+		roomState?.started,
+		roomState?.countdownEndsAt
+	]);
+
+	/*
+	 * GAME LOOP
+	 */
+	const {
+		hardDropCurrentPiece,
+		applyPenalty
+	} = useGameLoop({
 		room,
 
 		started:
-			roomState?.started,
+			gamePlayable,
 
 		board,
 
@@ -118,15 +472,41 @@ function Game() {
 		setScore
 	});
 
+	/*
+	 * CONTROLS
+	 */
+	useKeyboard({
+		started:
+			gamePlayable,
+
+		gameOver,
+
+		board,
+
+		currentPiece,
+
+		setCurrentPiece,
+
+		onHardDrop:
+			hardDropCurrentPiece
+	});
+
+	/*
+	 * MULTIPLAYER
+	 */
 	const {
 		opponents
 	} = useMultiplayer({
 		room,
 
 		started:
-			roomState?.started,
+			gamePlayable,
 
-		board
+		board,
+
+		roomState,
+
+		playerId
 	});
 
 	const isHost =
@@ -134,7 +514,7 @@ function Game() {
 		playerId;
 
 	/*
-	 * CHANGE GAME MODE
+	 * GAME MODE
 	 */
 	const handleModeChange =
 		(mode) => {
@@ -171,6 +551,66 @@ function Game() {
 				return;
 			}
 
+			setBoard(
+				createBoard()
+			);
+
+			setScore(
+				0
+			);
+
+			setGameOver(
+				false
+			);
+
+			setShowRanking(
+				false
+			);
+
+			setIsFading(
+				false
+			);
+
+			setIsFinishing(
+				false
+			);
+
+			setRanking(
+				[]
+			);
+
+			setFinishedMode(
+				null
+			);
+
+			setCountdown(
+				null
+			);
+
+			setGamePlayable(
+				false
+			);
+
+			setSessionReady(
+				false
+			);
+
+			setCurrentPiece(
+				null
+			);
+
+			setNextPiece(
+				null
+			);
+
+			initializedRoundRef.current =
+				null;
+
+			clearGameSession(
+				room,
+				playerId
+			);
+
 			socket.emit(
 				"game:start",
 				{
@@ -180,10 +620,15 @@ function Game() {
 		};
 
 	/*
+	 * =================================
 	 * FINAL RANKING
+	 * =================================
 	 */
 	useEffect(() => {
 		let fadeTimeout =
+			null;
+
+		let rankingTimeout =
 			null;
 
 		const onGameFinished =
@@ -208,11 +653,71 @@ function Game() {
 						null
 				);
 
-				setIsFading(
+				setGamePlayable(
+					false
+				);
+
+				/*
+				 * The server round is over.
+				 * Snapshot is no longer
+				 * needed.
+				 */
+				clearGameSession(
+					room,
+					playerId
+				);
+
+				setSessionReady(
+					false
+				);
+
+				initializedRoundRef.current =
+					null;
+
+				/*
+				 * SOLO
+				 *
+				 * Keep final board and
+				 * GAME OVER visible.
+				 * No ranking screen.
+				 */
+				if (
+					data.mode ===
+					"solo"
+				) {
+					setIsFinishing(
+						false
+					);
+
+					setIsFading(
+						false
+					);
+
+					setShowRanking(
+						false
+					);
+
+					return;
+				}
+
+				/*
+				 * MULTIPLAYER
+				 */
+				setIsFinishing(
 					true
 				);
 
 				fadeTimeout =
+					setTimeout(
+						() => {
+							setIsFading(
+								true
+							);
+						},
+						2500
+					);
+
+				rankingTimeout =
 					setTimeout(
 						() => {
 							setShowRanking(
@@ -222,8 +727,12 @@ function Game() {
 							setIsFading(
 								false
 							);
+
+							setIsFinishing(
+								false
+							);
 						},
-						700
+						3000
 					);
 			};
 
@@ -245,8 +754,19 @@ function Game() {
 					fadeTimeout
 				);
 			}
+
+			if (
+				rankingTimeout
+			) {
+				clearTimeout(
+					rankingTimeout
+				);
+			}
 		};
-	}, []);
+	}, [
+		room,
+		playerId
+	]);
 
 	/*
 	 * RECEIVE PENALTY
@@ -262,12 +782,8 @@ function Game() {
 					count
 				);
 
-				setBoard(
-					(currentBoard) =>
-						addPenaltyLines(
-							currentBoard,
-							count
-						)
+				applyPenalty(
+					count
 				);
 			};
 
@@ -282,10 +798,12 @@ function Game() {
 				onPenaltyAdd
 			);
 		};
-	}, []);
+	}, [
+		applyPenalty
+	]);
 
 	/*
-	 * HOST REQUESTS RESTART
+	 * PLAY AGAIN
 	 */
 	const handleRestart =
 		() => {
@@ -301,7 +819,9 @@ function Game() {
 		};
 
 	/*
-	 * EVERYBODY RECEIVES RESTART
+	 * =================================
+	 * RETURN TO LOBBY
+	 * =================================
 	 */
 	useEffect(() => {
 		const onGameRestart =
@@ -326,6 +846,10 @@ function Game() {
 					false
 				);
 
+				setIsFinishing(
+					false
+				);
+
 				setRanking(
 					[]
 				);
@@ -334,15 +858,32 @@ function Game() {
 					null
 				);
 
+				setCountdown(
+					null
+				);
+
+				setGamePlayable(
+					false
+				);
+
+				setSessionReady(
+					false
+				);
+
 				setCurrentPiece(
 					null
 				);
 
-				socket.emit(
-					"piece:next",
-					{
-						room
-					}
+				setNextPiece(
+					null
+				);
+
+				initializedRoundRef.current =
+					null;
+
+				clearGameSession(
+					room,
+					playerId
 				);
 			};
 
@@ -359,8 +900,21 @@ function Game() {
 		};
 	}, [
 		room,
-		setCurrentPiece
+		playerId,
+		setCurrentPiece,
+		setNextPiece
 	]);
+
+	/*
+	 * Keep final board displayed
+	 * after server sets started=false.
+	 */
+	const showBoard =
+		Boolean(
+			roomState?.started ||
+			isFinishing ||
+			gameOver
+		);
 
 	return (
 		<main className="game-page">
@@ -378,7 +932,8 @@ function Game() {
 				</div>
 			</header>
 
-			{showRanking ? (
+			{showRanking &&
+			finishedMode !== "solo" ? (
 				<Ranking
 					players={
 						ranking
@@ -438,7 +993,11 @@ function Game() {
 
 					<GameStatus
 						started={
-							roomState?.started
+							showBoard
+						}
+
+						finishing={
+							isFinishing
 						}
 
 						board={
@@ -455,6 +1014,10 @@ function Game() {
 
 						score={
 							score
+						}
+
+						countdown={
+							countdown
 						}
 					/>
 

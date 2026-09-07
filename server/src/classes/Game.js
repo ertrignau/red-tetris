@@ -22,28 +22,38 @@ class Game {
 		this.started =
 			false;
 
+		this.roundId =
+			0;
+
 		this.pieces =
 			[];
 
+		/*
+		 * Stores player snapshots
+		 * instead of player ids.
+		 *
+		 * This allows disconnected
+		 * players to remain present
+		 * in the final ranking.
+		 */
 		this.eliminationOrder =
 			[];
 
 		/*
-		 * Mode selected by host
-		 * before the game starts.
+		 * Players removed during an
+		 * active round are kept here
+		 * for Points ranking.
 		 */
+		this.departedPlayers =
+			[];
+
 		this.mode =
 			"battle-royale";
 
-		/*
-		 * Actual mode used by
-		 * the current round.
-		 *
-		 * "solo"
-		 * "battle-royale"
-		 * "points"
-		 */
 		this.activeMode =
+			null;
+
+		this.countdownEndsAt =
 			null;
 	}
 
@@ -177,6 +187,26 @@ class Game {
 		return true;
 	}
 
+	/*
+	 * Create a small immutable
+	 * representation of a player
+	 * for rankings.
+	 */
+	createPlayerSnapshot(
+		player
+	) {
+		return {
+			id:
+				player.id,
+
+			name:
+				player.name,
+
+			score:
+				player.score
+		};
+	}
+
 	markPlayerDead(playerId) {
 		const player =
 			this.players.get(
@@ -194,7 +224,35 @@ class Game {
 			false;
 
 		this.eliminationOrder.push(
-			playerId
+			this.createPlayerSnapshot(
+				player
+			)
+		);
+	}
+
+	/*
+	 * Keep disconnected players
+	 * available for Points ranking
+	 * after removing them from the
+	 * active room.
+	 */
+	recordDepartedPlayer(
+		player
+	) {
+		const alreadyRecorded =
+			this.departedPlayers.some(
+				(departed) =>
+					departed.id ===
+					player.id
+			);
+
+		if (alreadyRecorded)
+			return;
+
+		this.departedPlayers.push(
+			this.createPlayerSnapshot(
+				player
+			)
 		);
 	}
 
@@ -216,24 +274,47 @@ class Game {
 		);
 	}
 
+	/*
+	 * Battle Royale ranking.
+	 *
+	 * Last eliminated player is
+	 * ranked higher than players
+	 * eliminated before them.
+	 */
 	getRanking() {
 		return [
 			...this.eliminationOrder
-		]
-			.reverse()
-			.map(
-				(playerId) =>
-					this.players.get(
-						playerId
-					)
-			)
-			.filter(Boolean);
+		].reverse();
 	}
 
+	/*
+	 * Points ranking includes both
+	 * players still present and
+	 * players that disconnected.
+	 */
 	getPointsRanking() {
-		return [
-			...this.getPlayers()
-		].sort(
+		const players = [
+			...this.getPlayers(),
+			...this.departedPlayers
+		];
+
+		/*
+		 * Prevent duplicates in case
+		 * a player was already stored.
+		 */
+		const uniquePlayers =
+			Array.from(
+				new Map(
+					players.map(
+						(player) => [
+							player.id,
+							player
+						]
+					)
+				).values()
+			);
+
+		return uniquePlayers.sort(
 			(a, b) =>
 				b.score -
 				a.score

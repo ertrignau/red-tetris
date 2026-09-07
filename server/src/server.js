@@ -101,10 +101,16 @@ function buildRoomState(
 		started:
 			game.started,
 
+		roundId:
+			game.roundId,
+
 		hostId:
 			game.hostId,
 
 		mode,
+
+		countdownEndsAt:
+			game.countdownEndsAt,
 
 		players:
 			players.map(
@@ -176,6 +182,9 @@ function finishGame(
 ) {
 	game.started =
 		false;
+
+	game.countdownEndsAt =
+		null;
 
 	const ranking =
 		buildRanking(
@@ -361,6 +370,13 @@ io.on(
 						playerId
 					);
 
+				/*
+				 * New players cannot join
+				 * while the match is running.
+				 *
+				 * Existing players are allowed
+				 * to reconnect.
+				 */
 				if (
 					game.started &&
 					!existingPlayer
@@ -529,6 +545,9 @@ io.on(
 					return;
 				}
 
+				game.roundId +=
+					1;
+
 				game.generateSequence();
 
 				game.activeMode =
@@ -540,7 +559,17 @@ io.on(
 				game.started =
 					true;
 
+				/*
+				 * Shared countdown
+				 * for all players.
+				 */
+				game.countdownEndsAt =
+					Date.now() + 3000;
+
 				game.eliminationOrder =
+					[];
+
+				game.departedPlayers =
 					[];
 
 				for (
@@ -723,6 +752,9 @@ io.on(
 					game
 				);
 
+				/*
+				 * BATTLE ROYALE
+				 */
 				if (
 					game.activeMode ===
 					"battle-royale"
@@ -756,6 +788,9 @@ io.on(
 					return;
 				}
 
+				/*
+				 * POINTS
+				 */
 				if (
 					game.activeMode ===
 					"points"
@@ -774,6 +809,9 @@ io.on(
 					return;
 				}
 
+				/*
+				 * SOLO
+				 */
 				if (
 					!game.isFinished()
 				) {
@@ -925,7 +963,7 @@ io.on(
 		);
 
 		/*
-		 * RESTART
+		 * RETURN TO LOBBY
 		 */
 		socket.on(
 			"game:restart",
@@ -953,18 +991,19 @@ io.on(
 					return;
 				}
 
-				game.generateSequence();
+				game.started =
+					false;
 
 				game.activeMode =
-					game.getPlayers()
-						.length > 1
-						? game.mode
-						: "solo";
+					null;
 
-				game.started =
-					true;
+				game.countdownEndsAt =
+					null;
 
 				game.eliminationOrder =
+					[];
+
+				game.departedPlayers =
 					[];
 
 				for (
@@ -995,7 +1034,7 @@ io.on(
 				);
 
 				console.log(
-					`Game ${room} restarted by ${player.name} (${game.activeMode})`
+					`Game ${room} returned to lobby by ${player.name}`
 				);
 			}
 		);
@@ -1039,6 +1078,11 @@ io.on(
 				if (!player)
 					return;
 
+				/*
+				 * Ignore stale disconnect
+				 * from an old socket after
+				 * a reconnect.
+				 */
 				if (
 					player.socketId !==
 					socket.id
@@ -1079,6 +1123,10 @@ io.on(
 							if (!currentPlayer)
 								return;
 
+							/*
+							 * Player reconnected during
+							 * the 3 second grace period.
+							 */
 							if (
 								currentPlayer.socketId !==
 								socket.id
@@ -1086,14 +1134,56 @@ io.on(
 								return;
 							}
 
+							const wasStarted =
+								currentGame.started;
+
+							const mode =
+								currentGame.activeMode;
+
 							const wasHost =
 								currentGame.hostId ===
 								playerId;
 
+							/*
+							 * A permanent disconnect
+							 * during a running match
+							 * counts as an elimination.
+							 */
+							if (
+								wasStarted
+							) {
+								if (
+									currentPlayer.alive
+								) {
+									currentGame.markPlayerDead(
+										playerId
+									);
+
+									console.log(
+										`Player ${currentPlayer.name} eliminated by disconnect`
+									);
+								}
+
+								/*
+								 * Keep score/player data
+								 * for Points ranking.
+								 */
+								currentGame.recordDepartedPlayer(
+									currentPlayer
+								);
+							}
+
+							/*
+							 * Player must disappear from
+							 * the active room.
+							 */
 							currentGame.removePlayer(
 								playerId
 							);
 
+							/*
+							 * Nobody remains.
+							 */
 							if (
 								currentGame
 									.getPlayers()
@@ -1110,6 +1200,102 @@ io.on(
 								return;
 							}
 
+							/*
+							 * Normal lobby disconnect.
+							 */
+							if (
+								!wasStarted
+							) {
+								emitRoomState(
+									currentGame
+								);
+
+								if (
+									wasHost
+								) {
+									console.log(
+										`New host for ${room}: ${currentGame.hostId}`
+									);
+								}
+
+								console.log(
+									`Player ${playerId} removed from ${room}`
+								);
+
+								return;
+							}
+
+							/*
+							 * BATTLE ROYALE
+							 *
+							 * Disconnect counts as
+							 * an elimination.
+							 */
+							if (
+								mode ===
+								"battle-royale"
+							) {
+								const alivePlayers =
+									currentGame
+										.getAlivePlayers();
+
+								if (
+									alivePlayers.length <=
+									1
+								) {
+									const winner =
+										alivePlayers[0];
+
+									const rankingPlayers = [
+										...(winner
+											? [winner]
+											: []),
+
+										...currentGame
+											.getRanking()
+									];
+
+									finishGame(
+										currentGame,
+										rankingPlayers
+									);
+
+									console.log(
+										`Battle Royale ${room} finished after disconnect`
+									);
+
+									return;
+								}
+							}
+
+							/*
+							 * POINTS
+							 *
+							 * A disconnected player is
+							 * treated as finished.
+							 */
+							if (
+								mode ===
+									"points" &&
+								currentGame.isFinished()
+							) {
+								finishGame(
+									currentGame,
+									currentGame
+										.getPointsRanking()
+								);
+
+								console.log(
+									`Points game ${room} finished after disconnect`
+								);
+
+								return;
+							}
+
+							/*
+							 * Match continues with
+							 * remaining players.
+							 */
 							emitRoomState(
 								currentGame
 							);
