@@ -1,10 +1,17 @@
 import {
+	useEffect,
 	useState
 } from "react";
 
 import {
 	useNavigate
 } from "react-router-dom";
+
+import socket from "../../socket/socket.js";
+
+import {
+	getPlayerId
+} from "../../utils/playerIdentity.js";
 
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 16;
@@ -34,15 +41,77 @@ function Home() {
 		setError
 	] = useState("");
 
-	const handleSubmit =
-		(event) => {
-			event.preventDefault();
+	const [
+		matchmaking,
+		setMatchmaking
+	] = useState(false);
 
+	const [
+		playerId
+	] = useState(
+		() => getPlayerId()
+	);
+
+	useEffect(() => {
+		const onMatchFound =
+			({
+				room: foundRoom
+			}) => {
+				setMatchmaking(
+					false
+				);
+
+				setError(
+					""
+				);
+
+				navigate(
+					`/${encodeURIComponent(foundRoom)}/${encodeURIComponent(player.trim())}`
+				);
+			};
+
+		const onMatchmakingError =
+			(data) => {
+				setMatchmaking(
+					false
+				);
+
+				setError(
+					data.message ??
+						"Matchmaking error"
+				);
+			};
+
+		socket.on(
+			"matchmaking:found",
+			onMatchFound
+		);
+
+		socket.on(
+			"matchmaking:error",
+			onMatchmakingError
+		);
+
+		return () => {
+			socket.off(
+				"matchmaking:found",
+				onMatchFound
+			);
+
+			socket.off(
+				"matchmaking:error",
+				onMatchmakingError
+			);
+		};
+	}, [
+		navigate,
+		player
+	]);
+
+	const validatePlayer =
+		() => {
 			const cleanPlayer =
 				player.trim();
-
-			const cleanRoom =
-				room.trim();
 
 			if (
 				cleanPlayer.length <
@@ -54,8 +123,24 @@ function Home() {
 					`Player name must be between ${USERNAME_MIN_LENGTH} and ${USERNAME_MAX_LENGTH} characters`
 				);
 
-				return;
+				return null;
 			}
+
+			return cleanPlayer;
+		};
+
+	const handleSubmit =
+		(event) => {
+			event.preventDefault();
+
+			const cleanPlayer =
+				validatePlayer();
+
+			if (!cleanPlayer)
+				return;
+
+			const cleanRoom =
+				room.trim();
 
 			if (
 				cleanRoom.length <
@@ -82,10 +167,39 @@ function Home() {
 				return;
 			}
 
-			setError("");
+			setError(
+				""
+			);
 
 			navigate(
 				`/${encodeURIComponent(cleanRoom)}/${encodeURIComponent(cleanPlayer)}`
+			);
+		};
+
+	const handleMatchmaking =
+		() => {
+			const cleanPlayer =
+				validatePlayer();
+
+			if (!cleanPlayer)
+				return;
+
+			setError(
+				""
+			);
+
+			setMatchmaking(
+				true
+			);
+
+			socket.emit(
+				"matchmaking:join",
+				{
+					player:
+						cleanPlayer,
+
+					playerId
+				}
 			);
 		};
 
@@ -194,10 +308,29 @@ function Home() {
 						type="submit"
 						disabled={
 							!player.trim() ||
-							!room.trim()
+							!room.trim() ||
+							matchmaking
 						}
 					>
 						JOIN GAME
+					</button>
+
+					<button
+						className="home-matchmaking-button"
+						type="button"
+						onClick={
+							handleMatchmaking
+						}
+						disabled={
+							!player.trim() ||
+							matchmaking
+						}
+					>
+						<span className="matchmaking-dot"></span>
+
+						{matchmaking
+							? "SEARCHING FOR GAME"
+							: "FIND MATCH"}
 					</button>
 
 					<div className="home-separator">

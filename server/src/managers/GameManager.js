@@ -6,7 +6,9 @@ class GameManager {
 			new Map();
 	}
 
-	createGame(roomName) {
+	createGame(
+		roomName
+	) {
 		const game =
 			new Game(
 				roomName
@@ -20,7 +22,9 @@ class GameManager {
 		return game;
 	}
 
-	getGame(roomName) {
+	getGame(
+		roomName
+	) {
 		return this.games.get(
 			roomName
 		);
@@ -44,7 +48,9 @@ class GameManager {
 		return game;
 	}
 
-	removeGame(roomName) {
+	removeGame(
+		roomName
+	) {
 		this.games.delete(
 			roomName
 		);
@@ -69,7 +75,24 @@ class GameManager {
 		return null;
 	}
 
-	hasGame(roomName) {
+	findAvailableGame() {
+		for (
+			const game
+			of this.games.values()
+		) {
+			if (
+				!game.started
+			) {
+				return game;
+			}
+		}
+
+		return null;
+	}
+
+	hasGame(
+		roomName
+	) {
 		return this.games.has(
 			roomName
 		);

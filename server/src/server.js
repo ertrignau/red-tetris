@@ -81,6 +81,12 @@ function cancelDisconnect(
 	);
 }
 
+function generateMatchmakingRoom() {
+	return `match-${Math.random()
+		.toString(36)
+		.slice(2, 10)}`;
+}
+
 function buildRoomState(
 	game
 ) {
@@ -259,6 +265,164 @@ io.on(
 		);
 
 		/*
+		 * MATCHMAKING
+		 */
+		socket.on(
+			"matchmaking:join",
+			({
+				player,
+				playerId
+			}) => {
+				if (
+					typeof player !==
+						"string" ||
+					typeof playerId !==
+						"string"
+				) {
+					socket.emit(
+						"matchmaking:error",
+						{
+							message:
+								"Invalid player"
+						}
+					);
+
+					return;
+				}
+
+				const cleanPlayer =
+					player.trim();
+
+				const usernameError =
+					validateUsername(
+						cleanPlayer
+					);
+
+				if (
+					usernameError
+				) {
+					socket.emit(
+						"matchmaking:error",
+						{
+							message:
+								usernameError
+						}
+					);
+
+					return;
+				}
+
+				if (
+					playerId.length >
+					128
+				) {
+					socket.emit(
+						"matchmaking:error",
+						{
+							message:
+								"Invalid player id"
+						}
+					);
+
+					return;
+				}
+
+				/*
+				 * Search for a room whose
+				 * game has not started.
+				 */
+				let game =
+					gameManager
+						.findAvailableGame();
+
+				/*
+				 * None found:
+				 * create a new waiting room.
+				 */
+				if (!game) {
+					let room;
+
+					do {
+						room =
+							generateMatchmakingRoom();
+					} while (
+						gameManager.hasGame(
+							room
+						)
+					);
+
+					game =
+						gameManager
+							.createGame(
+								room
+							);
+
+					console.log(
+						`Matchmaking room created: ${room}`
+					);
+				}
+
+				cancelDisconnect(
+					game.roomName,
+					playerId
+				);
+
+				let roomPlayer =
+					game.getPlayer(
+						playerId
+					);
+
+				if (
+					roomPlayer
+				) {
+					roomPlayer.reconnect(
+						socket.id
+					);
+
+					roomPlayer.name =
+						cleanPlayer;
+				} else {
+					roomPlayer =
+						new Player(
+							playerId,
+							socket.id,
+							cleanPlayer
+						);
+
+					game.addPlayer(
+						roomPlayer
+					);
+				}
+
+				socket.join(
+					game.roomName
+				);
+
+				socket.data.room =
+					game.roomName;
+
+				socket.data.playerId =
+					playerId;
+
+				socket.emit(
+					"matchmaking:found",
+					{
+						room:
+							game.roomName
+					}
+				);
+
+				emitRoomState(
+					game
+				);
+
+				console.log(
+					`Matchmaking: ${cleanPlayer} joined ${game.roomName}`
+				);
+			}
+		);
+
+		/*
 		 * JOIN / RECONNECT
 		 */
 		socket.on(
@@ -370,13 +534,6 @@ io.on(
 						playerId
 					);
 
-				/*
-				 * New players cannot join
-				 * while the match is running.
-				 *
-				 * Existing players are allowed
-				 * to reconnect.
-				 */
 				if (
 					game.started &&
 					!existingPlayer
@@ -559,10 +716,6 @@ io.on(
 				game.started =
 					true;
 
-				/*
-				 * Shared countdown
-				 * for all players.
-				 */
 				game.countdownEndsAt =
 					Date.now() + 3000;
 
@@ -752,9 +905,6 @@ io.on(
 					game
 				);
 
-				/*
-				 * BATTLE ROYALE
-				 */
 				if (
 					game.activeMode ===
 					"battle-royale"
@@ -788,9 +938,6 @@ io.on(
 					return;
 				}
 
-				/*
-				 * POINTS
-				 */
 				if (
 					game.activeMode ===
 					"points"
@@ -809,9 +956,6 @@ io.on(
 					return;
 				}
 
-				/*
-				 * SOLO
-				 */
 				if (
 					!game.isFinished()
 				) {
@@ -1078,11 +1222,6 @@ io.on(
 				if (!player)
 					return;
 
-				/*
-				 * Ignore stale disconnect
-				 * from an old socket after
-				 * a reconnect.
-				 */
 				if (
 					player.socketId !==
 					socket.id
@@ -1123,10 +1262,6 @@ io.on(
 							if (!currentPlayer)
 								return;
 
-							/*
-							 * Player reconnected during
-							 * the 3 second grace period.
-							 */
 							if (
 								currentPlayer.socketId !==
 								socket.id
@@ -1144,11 +1279,6 @@ io.on(
 								currentGame.hostId ===
 								playerId;
 
-							/*
-							 * A permanent disconnect
-							 * during a running match
-							 * counts as an elimination.
-							 */
 							if (
 								wasStarted
 							) {
@@ -1164,26 +1294,15 @@ io.on(
 									);
 								}
 
-								/*
-								 * Keep score/player data
-								 * for Points ranking.
-								 */
 								currentGame.recordDepartedPlayer(
 									currentPlayer
 								);
 							}
 
-							/*
-							 * Player must disappear from
-							 * the active room.
-							 */
 							currentGame.removePlayer(
 								playerId
 							);
 
-							/*
-							 * Nobody remains.
-							 */
 							if (
 								currentGame
 									.getPlayers()
@@ -1200,9 +1319,6 @@ io.on(
 								return;
 							}
 
-							/*
-							 * Normal lobby disconnect.
-							 */
 							if (
 								!wasStarted
 							) {
@@ -1225,12 +1341,6 @@ io.on(
 								return;
 							}
 
-							/*
-							 * BATTLE ROYALE
-							 *
-							 * Disconnect counts as
-							 * an elimination.
-							 */
 							if (
 								mode ===
 								"battle-royale"
@@ -1268,12 +1378,6 @@ io.on(
 								}
 							}
 
-							/*
-							 * POINTS
-							 *
-							 * A disconnected player is
-							 * treated as finished.
-							 */
 							if (
 								mode ===
 									"points" &&
@@ -1292,10 +1396,6 @@ io.on(
 								return;
 							}
 
-							/*
-							 * Match continues with
-							 * remaining players.
-							 */
 							emitRoomState(
 								currentGame
 							);
