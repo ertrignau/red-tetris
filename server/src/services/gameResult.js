@@ -25,7 +25,12 @@ export function buildRanking(
 
 			isHost:
 				player.id ===
-				game.hostId
+					game.hostId,
+			
+			isBot:
+				Boolean(
+					player.isBot
+				)
 		})
 	);
 }

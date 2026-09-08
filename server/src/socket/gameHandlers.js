@@ -9,17 +9,21 @@ import {
 export function registerGameHandlers({
 	io,
 	socket,
-	gameManager
+	gameManager,
+	botRunner
 }) {
+
 	/*
 	 * GAME MODE
 	 */
+
 	socket.on(
 		"game:mode",
 		({
 			room,
 			mode
 		}) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -70,15 +74,18 @@ export function registerGameHandlers({
 			console.log(
 				`Game ${room} mode: ${mode}`
 			);
+
 		}
 	);
 
 	/*
 	 * START
 	 */
+
 	socket.on(
 		"game:start",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -133,6 +140,17 @@ export function registerGameHandlers({
 				const roomPlayer
 				of game.players.values()
 			) {
+
+				if (
+					roomPlayer.isBot &&
+					typeof roomPlayer.resetBot ===
+						"function"
+				) {
+					roomPlayer.resetBot();
+
+					continue;
+				}
+
 				roomPlayer.alive =
 					true;
 
@@ -144,6 +162,7 @@ export function registerGameHandlers({
 
 				roomPlayer.score =
 					0;
+
 			}
 
 			emitRoomState(
@@ -151,21 +170,35 @@ export function registerGameHandlers({
 				game
 			);
 
+			/*
+			 * Start all bots after
+			 * room state has been sent.
+			 *
+			 * BotRunner will respect
+			 * countdownEndsAt.
+			 */
+			botRunner.startGame(
+				game
+			);
+
 			console.log(
 				`Game ${room} started by ${player.name} (${game.activeMode})`
 			);
+
 		}
 	);
 
 	/*
 	 * SCORE
 	 */
+
 	socket.on(
 		"score:update",
 		({
 			room,
 			score
 		}) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -208,15 +241,18 @@ export function registerGameHandlers({
 				Math.floor(
 					value
 				);
+
 		}
 	);
 
 	/*
 	 * PLAYER DEAD
 	 */
+
 	socket.on(
 		"player:dead",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -258,6 +294,7 @@ export function registerGameHandlers({
 				game.activeMode ===
 				"battle-royale"
 			) {
+
 				const alivePlayers =
 					game.getAlivePlayers();
 
@@ -284,12 +321,14 @@ export function registerGameHandlers({
 				);
 
 				return;
+
 			}
 
 			if (
 				game.activeMode ===
 				"points"
 			) {
+
 				if (
 					!game.isFinished()
 				) {
@@ -303,6 +342,7 @@ export function registerGameHandlers({
 				);
 
 				return;
+
 			}
 
 			if (
@@ -316,15 +356,18 @@ export function registerGameHandlers({
 				game,
 				game.getRanking()
 			);
+
 		}
 	);
 
 	/*
 	 * RETURN TO LOBBY
 	 */
+
 	socket.on(
 		"game:restart",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -367,6 +410,17 @@ export function registerGameHandlers({
 				const roomPlayer
 				of game.players.values()
 			) {
+
+				if (
+					roomPlayer.isBot &&
+					typeof roomPlayer.resetBot ===
+						"function"
+				) {
+					roomPlayer.resetBot();
+
+					continue;
+				}
+
 				roomPlayer.alive =
 					true;
 
@@ -378,6 +432,7 @@ export function registerGameHandlers({
 
 				roomPlayer.score =
 					0;
+
 			}
 
 			io.to(
@@ -394,6 +449,8 @@ export function registerGameHandlers({
 			console.log(
 				`Game ${room} returned to lobby by ${player.name}`
 			);
+
 		}
 	);
+
 }

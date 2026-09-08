@@ -53,17 +53,17 @@ function Ranking({
 
 								<span className="ranking-player">
 									{player.name}
+
+									{player.isHost && (
+										<span className="ranking-host-icon">
+											HOST
+										</span>
+									)}
 								</span>
 
 								{mode === "points" && (
 									<span className="ranking-score">
 										{player.score ?? 0}
-									</span>
-								)}
-
-								{player.isHost && (
-									<span className="ranking-host">
-										HOST
 									</span>
 								)}
 							</div>

@@ -39,7 +39,10 @@ client/src/hooks/game/useGameSession.js
 client/src/hooks/game/useGameState.js
 client/src/hooks/game/usePenaltyReceiver.js
 client/src/hooks/game/useRanking.js
-client/src/hooks/useKeyboard.js
+client/src/hooks/keyboard/useDropKey.js
+client/src/hooks/keyboard/useGameControls.js
+client/src/hooks/keyboard/useMovementKeys.js
+client/src/hooks/keyboard/useRotationKey.js
 client/src/hooks/useMultiplayer.js
 client/src/hooks/useSocket.js
 client/src/main.jsx
@@ -59,6 +62,13 @@ client/vite.config.js
 package.json
 server/package.json
 server/src/app.js
+server/src/bots/botBoard.js
+server/src/bots/botController.js
+server/src/bots/botDifficulty.js
+server/src/bots/botEvaluation.js
+server/src/bots/botPlayer.js
+server/src/bots/botProfiles.js
+server/src/bots/botRunner.js
 server/src/classes/Game.js
 server/src/classes/Piece.js
 server/src/classes/Player.js
@@ -69,6 +79,7 @@ server/src/services/disconnectTimers.js
 server/src/services/gameResult.js
 server/src/services/roomLifecycle.js
 server/src/services/roomState.js
+server/src/socket/botHandlers.js
 server/src/socket/connection.js
 server/src/socket/disconnectHandlers.js
 server/src/socket/gameHandlers.js
@@ -382,9 +393,14 @@ export default GameHeader;
 ## `client/src/components/GameLayout/GameLayout.jsx`
 
 ```jsx
-import PlayerList from "../PlayerList/PlayerList.jsx";
-import GameStatus from "../GameStatus/GameStatus.jsx";
-import GameSidePanel from "../GameSidePanel/GameSidePanel.jsx";
+import PlayerList
+	from "../PlayerList/PlayerList.jsx";
+
+import GameStatus
+	from "../GameStatus/GameStatus.jsx";
+
+import GameSidePanel
+	from "../GameSidePanel/GameSidePanel.jsx";
 
 function GameLayout({
 	roomState,
@@ -397,6 +413,8 @@ function GameLayout({
 
 	onStart,
 	onModeChange,
+	onAddBot,
+	onRemoveBot,
 
 	showBoard,
 	isFinishing,
@@ -416,26 +434,41 @@ function GameLayout({
 				roomState={
 					roomState
 				}
+
 				player={
 					player
 				}
+
 				playerId={
 					playerId
 				}
+
 				error={
 					error
 				}
+
 				isHost={
 					isHost
 				}
+
 				onStart={
 					onStart
 				}
+
 				mode={
 					roomState?.mode
 				}
+
 				onModeChange={
 					onModeChange
+				}
+
+				onAddBot={
+					onAddBot
+				}
+
+				onRemoveBot={
+					onRemoveBot
 				}
 			/>
 
@@ -443,21 +476,27 @@ function GameLayout({
 				started={
 					showBoard
 				}
+
 				finishing={
 					isFinishing
 				}
+
 				board={
 					board
 				}
+
 				currentPiece={
 					currentPiece
 				}
+
 				gameOver={
 					gameOver
 				}
+
 				score={
 					score
 				}
+
 				countdown={
 					countdown
 				}
@@ -467,9 +506,11 @@ function GameLayout({
 				score={
 					score
 				}
+
 				nextPiece={
 					nextPiece
 				}
+
 				opponents={
 					opponents
 				}
@@ -769,7 +810,9 @@ function GameView({
 
 		handleStart,
 		handleModeChange,
-		handleRestart
+		handleRestart,
+		handleAddBot,
+		handleRemoveBot
 	} = game;
 
 	return (
@@ -831,6 +874,14 @@ function GameView({
 
 					onModeChange={
 						handleModeChange
+					}
+
+					onAddBot={
+						handleAddBot
+					}
+
+					onRemoveBot={
+						handleRemoveBot
 					}
 
 					showBoard={
@@ -961,10 +1012,17 @@ function PlayerList({
 	isHost,
 	onStart,
 	mode,
-	onModeChange
+	onModeChange,
+	onAddBot,
+	onRemoveBot
 }) {
 	const hasMultiplePlayers =
-		(roomState?.players?.length ?? 0) > 1;
+		(
+			roomState
+				?.players
+				?.length ??
+			0
+		) > 1;
 
 	const modeLabel =
 		mode === "points"
@@ -1005,6 +1063,7 @@ function PlayerList({
 								key={
 									roomPlayer.playerId
 								}
+
 								className={
 									roomPlayer.playerId ===
 									playerId
@@ -1022,10 +1081,36 @@ function PlayerList({
 									{roomPlayer.name}
 								</span>
 
+								{roomPlayer.isBot && (
+									<span className="bot-badge">
+										BOT
+									</span>
+								)}
+
 								{roomPlayer.isHost && (
 									<span className="host-badge">
 										HOST
 									</span>
+								)}
+
+								{isHost &&
+								roomPlayer.isBot &&
+								!roomState.started && (
+									<button
+										type="button"
+
+										className="remove-bot-button"
+
+										onClick={() =>
+											onRemoveBot(
+												roomPlayer.playerId
+											)
+										}
+
+										title="Remove bot"
+									>
+										×
+									</button>
 								)}
 							</li>
 						)
@@ -1035,6 +1120,21 @@ function PlayerList({
 				<p className="muted">
 					Loading players...
 				</p>
+			)}
+
+			{isHost &&
+			!roomState?.started && (
+				<button
+					type="button"
+
+					className="add-bot-button"
+
+					onClick={
+						onAddBot
+					}
+				>
+					+ ADD BOT
+				</button>
 			)}
 
 			{hasMultiplePlayers && (
@@ -1048,12 +1148,14 @@ function PlayerList({
 						<div className="game-mode-buttons">
 							<button
 								type="button"
+
 								className={
 									mode ===
 									"battle-royale"
 										? "mode-button mode-active"
 										: "mode-button"
 								}
+
 								onClick={() =>
 									onModeChange(
 										"battle-royale"
@@ -1065,12 +1167,14 @@ function PlayerList({
 
 							<button
 								type="button"
+
 								className={
 									mode ===
 									"points"
 										? "mode-button mode-active"
 										: "mode-button"
 								}
+
 								onClick={() =>
 									onModeChange(
 										"points"
@@ -1089,17 +1193,19 @@ function PlayerList({
 			)}
 
 			{isHost &&
-				!roomState?.started && (
-					<button
-						type="button"
-						className="start-button"
-						onClick={
-							onStart
-						}
-					>
-						START GAME
-					</button>
-				)}
+			!roomState?.started && (
+				<button
+					type="button"
+
+					className="start-button"
+
+					onClick={
+						onStart
+					}
+				>
+					START GAME
+				</button>
+			)}
 		</aside>
 	);
 }
@@ -1400,48 +1506,26 @@ export function addPenaltyLines(
 ## `client/src/game/pieces.js`
 
 ```javascript
-export const TETRIMINOS = {
-	I: [
-		[1, 1, 1, 1]
-	],
+import {
+	TETRIMINOS
+} from "../../../shared/constants.js";
 
-	O: [
-		[1, 1],
-		[1, 1]
-	],
-
-	T: [
-		[0, 1, 0],
-		[1, 1, 1]
-	],
-
-	S: [
-		[0, 1, 1],
-		[1, 1, 0]
-	],
-
-	Z: [
-		[1, 1, 0],
-		[0, 1, 1]
-	],
-
-	J: [
-		[1, 0, 0],
-		[1, 1, 1]
-	],
-
-	L: [
-		[0, 0, 1],
-		[1, 1, 1]
-	]
+export {
+	TETRIMINOS
 };
 
 export function createPiece(type) {
 	return {
 		type,
-		shape: TETRIMINOS[type],
+
+		shape:
+			TETRIMINOS[
+				type
+			],
+
 		x: 3,
 		y: 0,
+
 		rotation: 0
 	};
 }
@@ -1736,10 +1820,6 @@ function useGameActions({
 					return;
 				}
 
-				/*
-				 * Clean local state before
-				 * starting a new server round.
-				 */
 				resetClient();
 
 				socket.emit(
@@ -1757,9 +1837,60 @@ function useGameActions({
 			]
 		);
 
+	const handleAddBot =
+		useCallback(
+			() => {
+				if (
+					!isHost ||
+					roomState?.started
+				) {
+					return;
+				}
+
+				socket.emit(
+					"bot:add",
+					{
+						room
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started
+			]
+		);
+
+	const handleRemoveBot =
+		useCallback(
+			(botId) => {
+				if (
+					!isHost ||
+					roomState?.started
+				) {
+					return;
+				}
+
+				socket.emit(
+					"bot:remove",
+					{
+						room,
+						botId
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started
+			]
+		);
+
 	return {
 		handleModeChange,
-		handleStart
+		handleStart,
+		handleAddBot,
+		handleRemoveBot
 	};
 }
 
@@ -1776,11 +1907,11 @@ import {
 import useSocket
 	from "../useSocket.js";
 
-import useKeyboard
-	from "../useKeyboard.js";
+import useGameControls
+	from "../keyboard/useGameControls.js";
 
 import useGameLoop
-	from "../useGameLoop.js";
+	from "./useGameLoop.js";
 
 import useMultiplayer
 	from "../useMultiplayer.js";
@@ -1958,7 +2089,7 @@ function useGameController(
 	 * KEYBOARD
 	 * =================================
 	 */
-	useKeyboard({
+	useGameControls({
 		started:
 			gamePlayable,
 
@@ -2039,7 +2170,9 @@ function useGameController(
 	 */
 	const {
 		handleModeChange,
-		handleStart
+		handleStart,
+		handleAddBot,
+		handleRemoveBot
 	} = useGameActions({
 		room,
 		roomState,
@@ -2100,7 +2233,9 @@ function useGameController(
 		 */
 		handleStart,
 		handleModeChange,
-		handleRestart
+		handleRestart,
+		handleAddBot,
+		handleRemoveBot
 	};
 }
 
@@ -2116,31 +2251,32 @@ import {
 	useRef
 } from "react";
 
-import socket from "../socket/socket.js";
+import socket
+	from "../../socket/socket.js";
 
 import {
 	lockPiece
-} from "../game/board.js";
+} from "../../game/board.js";
 
 import {
 	hasCollision
-} from "../game/collision.js";
+} from "../../game/collision.js";
 
 import {
 	hardDrop
-} from "../game/drop.js";
+} from "../../game/drop.js";
 
 import {
 	clearLines
-} from "../game/lines.js";
+} from "../../game/lines.js";
 
 import {
 	calculateScore
-} from "../game/scoring.js";
+} from "../../game/scoring.js";
 
 import {
 	addPenaltyLines
-} from "../game/penalty.js";
+} from "../../game/penalty.js";
 
 function useGameLoop({
 	room,
@@ -3252,7 +3388,114 @@ function useRanking({
 export default useRanking;
 ```
 
-## `client/src/hooks/useKeyboard.js`
+## `client/src/hooks/keyboard/useDropKey.js`
+
+```javascript
+import {
+	useEffect
+} from "react";
+
+function useDropKeys({
+	enabled,
+	onHardDrop
+}) {
+	useEffect(() => {
+		if (!enabled)
+			return;
+
+		const handleKeyDown =
+			(event) => {
+				if (
+					event.code !==
+					"Space"
+				) {
+					return;
+				}
+
+				event.preventDefault();
+
+				if (
+					event.repeat
+				) {
+					return;
+				}
+
+				if (
+					onHardDrop
+				) {
+					onHardDrop();
+				}
+			};
+
+		window.addEventListener(
+			"keydown",
+			handleKeyDown
+		);
+
+		return () => {
+			window.removeEventListener(
+				"keydown",
+				handleKeyDown
+			);
+		};
+	}, [
+		enabled,
+		onHardDrop
+	]);
+}
+
+export default useDropKeys;
+```
+
+## `client/src/hooks/keyboard/useGameControls.js`
+
+```javascript
+import useMovementKeys
+	from "./useMovementKeys.js";
+
+import useRotationKey
+	from "./useRotationKey.js";
+
+import useDropKeys
+	from "./useDropKey.js";
+
+function useGameControls({
+	started,
+	gameOver,
+	currentPiece,
+	board,
+	setCurrentPiece,
+	onHardDrop
+}) {
+	const enabled =
+		Boolean(
+			started &&
+			currentPiece &&
+			!gameOver
+		);
+
+	useMovementKeys({
+		enabled,
+		board,
+		setCurrentPiece
+	});
+
+	useRotationKey({
+		enabled,
+		board,
+		setCurrentPiece
+	});
+
+	useDropKeys({
+		enabled,
+		onHardDrop
+	});
+}
+
+export default useGameControls;
+```
+
+## `client/src/hooks/keyboard/useMovementKeys.js`
 
 ```javascript
 import {
@@ -3263,50 +3506,19 @@ import {
 	moveLeft,
 	moveRight,
 	moveDown
-} from "../game/movement.js";
+} from "../../game/movement.js";
 
-import {
-	rotatePiece
-} from "../game/rotation.js";
-
-function useKeyboard({
-	started,
-	gameOver,
+function useMovementKeys({
+	enabled,
 	board,
-	currentPiece,
-	setCurrentPiece,
-	onHardDrop
+	setCurrentPiece
 }) {
 	useEffect(() => {
-		if (
-			!started ||
-			!currentPiece ||
-			gameOver
-		) {
+		if (!enabled)
 			return;
-		}
 
 		const handleKeyDown =
 			(event) => {
-				/*
-				 * Rotation and hard drop
-				 * happen only once per
-				 * physical key press.
-				 */
-				if (
-					event.repeat &&
-					(
-						event.code ===
-							"ArrowUp" ||
-						event.code ===
-							"Space"
-					)
-				) {
-					event.preventDefault();
-
-					return;
-				}
-
 				switch (
 					event.code
 				) {
@@ -3361,34 +3573,6 @@ function useKeyboard({
 
 						break;
 
-					case "ArrowUp":
-						event.preventDefault();
-
-						setCurrentPiece(
-							(piece) => {
-								if (!piece)
-									return piece;
-
-								return rotatePiece(
-									board,
-									piece
-								);
-							}
-						);
-
-						break;
-
-					case "Space":
-						event.preventDefault();
-
-						if (
-							onHardDrop
-						) {
-							onHardDrop();
-						}
-
-						break;
-
 					default:
 						break;
 				}
@@ -3406,16 +3590,84 @@ function useKeyboard({
 			);
 		};
 	}, [
-		started,
-		gameOver,
+		enabled,
 		board,
-		currentPiece,
-		setCurrentPiece,
-		onHardDrop
+		setCurrentPiece
 	]);
 }
 
-export default useKeyboard;
+export default useMovementKeys;
+```
+
+## `client/src/hooks/keyboard/useRotationKey.js`
+
+```javascript
+import {
+	useEffect
+} from "react";
+
+import {
+	rotatePiece
+} from "../../game/rotation.js";
+
+function useRotationKey({
+	enabled,
+	board,
+	setCurrentPiece
+}) {
+	useEffect(() => {
+		if (!enabled)
+			return;
+
+		const handleKeyDown =
+			(event) => {
+				if (
+					event.code !==
+					"ArrowUp"
+				) {
+					return;
+				}
+
+				event.preventDefault();
+
+				if (
+					event.repeat
+				) {
+					return;
+				}
+
+				setCurrentPiece(
+					(piece) => {
+						if (!piece)
+							return piece;
+
+						return rotatePiece(
+							board,
+							piece
+						);
+					}
+				);
+			};
+
+		window.addEventListener(
+			"keydown",
+			handleKeyDown
+		);
+
+		return () => {
+			window.removeEventListener(
+				"keydown",
+				handleKeyDown
+			);
+		};
+	}, [
+		enabled,
+		board,
+		setCurrentPiece
+	]);
+}
+
+export default useRotationKey;
 ```
 
 ## `client/src/hooks/useMultiplayer.js`
@@ -4144,7 +4396,7 @@ function Home() {
 									);
 								}
 							}
-							placeholder="Eric"
+							placeholder="username"
 							maxLength={
 								USERNAME_MAX_LENGTH
 							}
@@ -4343,17 +4595,17 @@ function Ranking({
 
 								<span className="ranking-player">
 									{player.name}
+
+									{player.isHost && (
+										<span className="ranking-host-icon">
+											HOST
+										</span>
+									)}
 								</span>
 
 								{mode === "points" && (
 									<span className="ranking-score">
 										{player.score ?? 0}
-									</span>
-								)}
-
-								{player.isHost && (
-									<span className="ranking-host">
-										HOST
 									</span>
 								)}
 							</div>
@@ -5684,6 +5936,104 @@ kbd {
 		transform: scale(1);
 	}
 }
+
+/* ================================= */
+/* BOTS */
+/* ================================= */
+
+.bot-badge {
+	flex-shrink: 0;
+
+	padding: 3px 6px;
+
+	border-radius: 4px;
+
+	background:
+		rgba(92, 174, 255, 0.13);
+
+	color:
+		#6eb7ff;
+
+	font-size: 8px;
+	font-weight: 900;
+
+	letter-spacing: 0.7px;
+}
+
+.add-bot-button {
+	width: 100%;
+
+	margin-top: 10px;
+	padding: 9px;
+
+	border:
+		1px solid #29354c;
+
+	border-radius: 7px;
+
+	background:
+		#0a0e17;
+
+	color:
+		#8996aa;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	cursor: pointer;
+
+	transition:
+		border-color 0.15s ease,
+		color 0.15s ease,
+		background 0.15s ease;
+}
+
+.add-bot-button:hover {
+	border-color:
+		rgba(92, 174, 255, 0.6);
+
+	background:
+		rgba(92, 174, 255, 0.05);
+
+	color:
+		#6eb7ff;
+}
+
+.remove-bot-button {
+	width: 20px;
+	height: 20px;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	flex-shrink: 0;
+
+	padding: 0;
+
+	border: 0;
+	border-radius: 4px;
+
+	background:
+		rgba(255, 64, 87, 0.1);
+
+	color:
+		#ff6477;
+
+	font-size: 15px;
+	font-weight: 900;
+
+	line-height: 1;
+
+	cursor: pointer;
+}
+
+.remove-bot-button:hover {
+	background:
+		rgba(255, 64, 87, 0.22);
+}
 ```
 
 ## `client/src/styles/home.css`
@@ -6384,7 +6734,6 @@ kbd {
 	grid-template-columns:
 		52px
 		minmax(0, 1fr)
-		auto
 		auto;
 
 	align-items: center;
@@ -6398,6 +6747,17 @@ kbd {
 
 	background: #0a0e17;
 }
+
+.ranking-host-icon {
+	margin-left: 7px;
+
+	color: #ffd257;
+
+	font-size: 10px;
+
+	vertical-align: middle;
+}
+
 .ranking-current {
 	border-color:
 		rgba(255, 64, 87, 0.45);
@@ -6419,14 +6779,17 @@ kbd {
 .ranking-player {
 	min-width: 0;
 
+	display: flex;
+	align-items: center;
+
+	gap: 7px;
+
 	color: #e8edf6;
 
 	font-size: 14px;
 	font-weight: 800;
 
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .ranking-score {
@@ -6842,384 +7205,1979 @@ app.use((req, res, next) => {
 export default app;
 ```
 
+## `server/src/bots/botBoard.js`
+
+```javascript
+export const BOT_BOARD_WIDTH =
+	10;
+
+export const BOT_BOARD_HEIGHT =
+	20;
+
+export function createBotBoard() {
+	return Array.from(
+		{
+			length:
+				BOT_BOARD_HEIGHT
+		},
+		() =>
+			Array(
+				BOT_BOARD_WIDTH
+			).fill(
+				null
+			)
+	);
+}
+
+export function cloneBotBoard(
+	board
+) {
+	return board.map(
+		(row) => [
+			...row
+		]
+	);
+}
+
+export function hasBotCollision(
+	board,
+	shape,
+	x,
+	y
+) {
+	for (
+		let row = 0;
+		row < shape.length;
+		row++
+	) {
+		for (
+			let col = 0;
+			col <
+				shape[row].length;
+			col++
+		) {
+			if (
+				!shape[row][col]
+			) {
+				continue;
+			}
+
+			const boardX =
+				x + col;
+
+			const boardY =
+				y + row;
+
+			if (
+				boardX < 0 ||
+				boardX >=
+					BOT_BOARD_WIDTH ||
+				boardY >=
+					BOT_BOARD_HEIGHT
+			) {
+				return true;
+			}
+
+			if (
+				boardY >= 0 &&
+				board[
+					boardY
+				][
+					boardX
+				] !== null
+			) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+export function lockBotPiece(
+	board,
+	shape,
+	type,
+	x,
+	y
+) {
+	const nextBoard =
+		cloneBotBoard(
+			board
+		);
+
+	for (
+		let row = 0;
+		row < shape.length;
+		row++
+	) {
+		for (
+			let col = 0;
+			col <
+				shape[row].length;
+			col++
+		) {
+			if (
+				!shape[row][col]
+			) {
+				continue;
+			}
+
+			const boardX =
+				x + col;
+
+			const boardY =
+				y + row;
+
+			if (
+				boardY >= 0 &&
+				boardY <
+					BOT_BOARD_HEIGHT &&
+				boardX >= 0 &&
+				boardX <
+					BOT_BOARD_WIDTH
+			) {
+				nextBoard[
+					boardY
+				][
+					boardX
+				] =
+					type;
+			}
+		}
+	}
+
+	return nextBoard;
+}
+
+export function clearBotLines(
+	board
+) {
+	const remainingRows =
+		board.filter(
+			(row) => {
+				const isFull =
+					row.every(
+						(cell) =>
+							cell !==
+							null
+					);
+
+				const hasPenalty =
+					row.some(
+						(cell) =>
+							cell ===
+							"P"
+					);
+
+				return (
+					!isFull ||
+					hasPenalty
+				);
+			}
+		);
+
+	const clearedLines =
+		BOT_BOARD_HEIGHT -
+		remainingRows.length;
+
+	const emptyRows =
+		Array.from(
+			{
+				length:
+					clearedLines
+			},
+			() =>
+				Array(
+					BOT_BOARD_WIDTH
+				).fill(
+					null
+				)
+		);
+
+	return {
+		board: [
+			...emptyRows,
+			...remainingRows
+		],
+
+		clearedLines
+	};
+}
+
+export function addBotPenaltyLines(
+	board,
+	count
+) {
+	const penaltyCount =
+		Math.max(
+			0,
+			Math.min(
+				Math.floor(
+					Number(
+						count
+					) || 0
+				),
+				BOT_BOARD_HEIGHT
+			)
+		);
+
+	if (
+		penaltyCount === 0
+	) {
+		return board;
+	}
+
+	const remainingBoard =
+		board
+			.slice(
+				penaltyCount
+			)
+			.map(
+				(row) => [
+					...row
+				]
+			);
+
+	const penaltyRows =
+		Array.from(
+			{
+				length:
+					penaltyCount
+			},
+			() =>
+				Array(
+					BOT_BOARD_WIDTH
+				).fill(
+					"P"
+				)
+		);
+
+	return [
+		...remainingBoard,
+		...penaltyRows
+	];
+}
+
+export function calculateBotSpectrum(
+	board
+) {
+	return Array.from(
+		{
+			length:
+				BOT_BOARD_WIDTH
+		},
+		(_, x) => {
+			for (
+				let y = 0;
+				y <
+					BOT_BOARD_HEIGHT;
+				y++
+			) {
+				if (
+					board[y][x] !==
+					null
+				) {
+					return (
+						BOT_BOARD_HEIGHT -
+						y
+					);
+				}
+			}
+
+			return 0;
+		}
+	);
+}
+```
+
+## `server/src/bots/botController.js`
+
+```javascript
+import {
+	TETRIMINOS
+} from "../../../shared/constants.js";
+
+import {
+	getBotDifficulty
+} from "./botDifficulty.js";
+
+import {
+	clearBotLines,
+	hasBotCollision,
+	lockBotPiece
+} from "./botBoard.js";
+
+import {
+	evaluateBotBoard
+} from "./botEvaluation.js";
+
+function rotateShape(
+	shape
+) {
+	const height =
+		shape.length;
+
+	const width =
+		shape[0].length;
+
+	const rotated =
+		Array.from(
+			{
+				length:
+					width
+			},
+			() =>
+				Array(
+					height
+				).fill(
+					0
+				)
+		);
+
+	for (
+		let y = 0;
+		y < height;
+		y++
+	) {
+		for (
+			let x = 0;
+			x < width;
+			x++
+		) {
+			rotated[
+				x
+			][
+				height - 1 - y
+			] =
+				shape[y][x];
+		}
+	}
+
+	return rotated;
+}
+
+function getRotations(
+	shape
+) {
+	const rotations =
+		[];
+
+	let current =
+		shape;
+
+	for (
+		let i = 0;
+		i < 4;
+		i++
+	) {
+		const key =
+			JSON.stringify(
+				current
+			);
+
+		const alreadyExists =
+			rotations.some(
+				(rotation) =>
+					JSON.stringify(
+						rotation
+					) ===
+					key
+			);
+
+		if (
+			!alreadyExists
+		) {
+			rotations.push(
+				current
+			);
+		}
+
+		current =
+			rotateShape(
+				current
+			);
+	}
+
+	return rotations;
+}
+
+function findDropY(
+	board,
+	shape,
+	x
+) {
+	let y =
+		0;
+
+	if (
+		hasBotCollision(
+			board,
+			shape,
+			x,
+			y
+		)
+	) {
+		return null;
+	}
+
+	while (
+		!hasBotCollision(
+			board,
+			shape,
+			x,
+			y + 1
+		)
+	) {
+		y++;
+	}
+
+	return y;
+}
+
+class BotController {
+	constructor(bot) {
+		this.bot =
+			bot;
+	}
+
+	getConfig() {
+		return getBotDifficulty(
+			this.bot.difficulty
+		);
+	}
+
+	findMoves(
+		pieceType
+	) {
+		const shape =
+			TETRIMINOS[
+				pieceType
+			];
+
+		if (!shape)
+			return [];
+
+		const config =
+			this.getConfig();
+
+		const rotations =
+			getRotations(
+				shape
+			);
+
+		const moves =
+			[];
+
+		for (
+			const rotation
+			of rotations
+		) {
+			const width =
+				rotation[0]
+					.length;
+
+			for (
+				let x = 0;
+				x <= 10 - width;
+				x++
+			) {
+				const y =
+					findDropY(
+						this.bot.board,
+						rotation,
+						x
+					);
+
+				if (
+					y === null
+				) {
+					continue;
+				}
+
+				const lockedBoard =
+					lockBotPiece(
+						this.bot.board,
+						rotation,
+						pieceType,
+						x,
+						y
+					);
+
+				const result =
+					clearBotLines(
+						lockedBoard
+					);
+
+				const score =
+					evaluateBotBoard({
+						board:
+							result.board,
+
+						clearedLines:
+							result.clearedLines,
+
+						weights:
+							config.weights
+					});
+
+				moves.push({
+					x,
+					y,
+
+					shape:
+						rotation,
+
+					board:
+						result.board,
+
+					clearedLines:
+						result.clearedLines,
+
+					score
+				});
+			}
+		}
+
+		return moves;
+	}
+
+	selectMove(
+		moves
+	) {
+		if (
+			moves.length ===
+			0
+		) {
+			return null;
+		}
+
+		const config =
+			this.getConfig();
+
+		const sortedMoves = [
+			...moves
+		].sort(
+			(a, b) =>
+				b.score -
+				a.score
+		);
+
+		if (
+			Math.random() <
+			config.errorRate
+		) {
+			const candidateCount =
+				Math.min(
+					3,
+					sortedMoves.length
+				);
+
+			return sortedMoves[
+				Math.floor(
+					Math.random() *
+						candidateCount
+				)
+			];
+		}
+
+		return sortedMoves[0];
+	}
+
+	chooseMove(
+		pieceType
+	) {
+		const moves =
+			this.findMoves(
+				pieceType
+			);
+
+		return this.selectMove(
+			moves
+		);
+	}
+}
+
+export default BotController;
+```
+
+## `server/src/bots/botDifficulty.js`
+
+```javascript
+export const BOT_DIFFICULTIES = {
+	easy: {
+		thinkDelay: 1200,
+
+		errorRate: 0.45,
+
+		weights: {
+			lines: 1,
+			holes: -1,
+			height: -0.4,
+			bumpiness: -0.2
+		}
+	},
+
+	medium: {
+		thinkDelay: 800,
+
+		errorRate: 0.2,
+
+		weights: {
+			lines: 2,
+			holes: -3,
+			height: -1,
+			bumpiness: -0.8
+		}
+	},
+
+	hard: {
+		thinkDelay: 450,
+
+		errorRate: 0.05,
+
+		weights: {
+			lines: 4,
+			holes: -7,
+			height: -2,
+			bumpiness: -1.5
+		}
+	},
+
+	expert: {
+		thinkDelay: 250,
+
+		errorRate: 0,
+
+		weights: {
+			lines: 6,
+			holes: -10,
+			height: -3,
+			bumpiness: -2
+		}
+	}
+};
+
+export function getBotDifficulty(
+	difficulty
+) {
+	return (
+		BOT_DIFFICULTIES[
+			difficulty
+		] ??
+		BOT_DIFFICULTIES.medium
+	);
+}
+```
+
+## `server/src/bots/botEvaluation.js`
+
+```javascript
+function getColumnHeight(
+	board,
+	x
+) {
+	for (
+		let y = 0;
+		y < board.length;
+		y++
+	) {
+		if (
+			board[y][x] !==
+			null
+		) {
+			return (
+				board.length -
+				y
+			);
+		}
+	}
+
+	return 0;
+}
+
+function countHoles(
+	board
+) {
+	let holes =
+		0;
+
+	for (
+		let x = 0;
+		x < board[0].length;
+		x++
+	) {
+		let blockSeen =
+			false;
+
+		for (
+			let y = 0;
+			y < board.length;
+			y++
+		) {
+			if (
+				board[y][x] !==
+				null
+			) {
+				blockSeen =
+					true;
+
+				continue;
+			}
+
+			if (
+				blockSeen
+			) {
+				holes++;
+			}
+		}
+	}
+
+	return holes;
+}
+
+function getAggregateHeight(
+	board
+) {
+	let total =
+		0;
+
+	for (
+		let x = 0;
+		x < board[0].length;
+		x++
+	) {
+		total +=
+			getColumnHeight(
+				board,
+				x
+			);
+	}
+
+	return total;
+}
+
+function getBumpiness(
+	board
+) {
+	const heights =
+		Array.from(
+			{
+				length:
+					board[0].length
+			},
+			(_, x) =>
+				getColumnHeight(
+					board,
+					x
+				)
+		);
+
+	let bumpiness =
+		0;
+
+	for (
+		let i = 0;
+		i <
+			heights.length - 1;
+		i++
+	) {
+		bumpiness +=
+			Math.abs(
+				heights[i] -
+				heights[
+					i + 1
+				]
+			);
+	}
+
+	return bumpiness;
+}
+
+export function evaluateBotBoard({
+	board,
+	clearedLines,
+	weights
+}) {
+	const holes =
+		countHoles(
+			board
+		);
+
+	const height =
+		getAggregateHeight(
+			board
+		);
+
+	const bumpiness =
+		getBumpiness(
+			board
+		);
+
+	return (
+		clearedLines *
+			weights.lines +
+		holes *
+			weights.holes +
+		height *
+			weights.height +
+		bumpiness *
+			weights.bumpiness
+	);
+}
+```
+
+## `server/src/bots/botPlayer.js`
+
+```javascript
+import Player
+	from "../classes/Player.js";
+
+import {
+	createBotBoard
+} from "./botBoard.js";
+
+class BotPlayer extends Player {
+	constructor({
+		playerId,
+		name,
+		difficulty
+	}) {
+		super(
+			playerId,
+			null,
+			name
+		);
+
+		this.isBot =
+			true;
+
+		this.difficulty =
+			difficulty;
+
+		this.board =
+			createBotBoard();
+	}
+
+	resetBot() {
+		this.alive =
+			true;
+
+		this.pieceIndex =
+			0;
+
+		this.spectrum =
+			[];
+
+		this.score =
+			0;
+
+		this.board =
+			createBotBoard();
+	}
+}
+
+export default BotPlayer;
+```
+
+## `server/src/bots/botProfiles.js`
+
+```javascript
+export const BOT_PROFILES = [
+	{
+		name: "NoobTetris",
+		difficulty: "easy"
+	},
+	{
+		name: "BabyBlock",
+		difficulty: "easy"
+	},
+	{
+		name: "ImScarred",
+		difficulty: "easy"
+	},
+	{
+		name: "PanicPiece",
+		difficulty: "easy"
+	},
+
+	{
+		name: "Harry Botteur",
+		difficulty: "medium"
+	},
+	{
+		name: "Blocky Balboa",
+		difficulty: "medium"
+	},
+	{
+		name: "Stack Attack",
+		difficulty: "medium"
+	},
+	{
+		name: "TetriScout",
+		difficulty: "medium"
+	},
+
+	{
+		name: "DarkSoultris",
+		difficulty: "hard"
+	},
+	{
+		name: "LineHunter",
+		difficulty: "hard"
+	},
+	{
+		name: "Magnus Carlsen",
+		difficulty: "hard"
+	},
+	{
+		name: "Tetromancer",
+		difficulty: "hard"
+	},
+
+	{
+		name: "PicalJean le desanuseur",
+		difficulty: "expert"
+	},
+	{
+		name: "VoidStacker",
+		difficulty: "expert"
+	},
+	{
+		name: "PerfectClear",
+		difficulty: "expert"
+	},
+	{
+		name: "TetrisPrime",
+		difficulty: "expert"
+	}
+];
+
+export function getRandomBotProfile() {
+	return BOT_PROFILES[
+		Math.floor(
+			Math.random() *
+			BOT_PROFILES.length
+		)
+	];
+}
+```
+
+## `server/src/bots/botRunner.js`
+
+```javascript
+import BotController
+	from "./botController.js";
+
+import {
+	getBotDifficulty
+} from "./botDifficulty.js";
+
+import {
+	addBotPenaltyLines,
+	calculateBotSpectrum
+} from "./botBoard.js";
+
+import {
+	emitRoomState
+} from "../services/roomState.js";
+
+import {
+	finishGame
+} from "../services/gameResult.js";
+
+const SCORE_TABLE = {
+	0: 0,
+	1: 100,
+	2: 300,
+	3: 500,
+	4: 800
+};
+
+function calculateScore(
+	lines
+) {
+	return (
+		SCORE_TABLE[
+			lines
+		] ?? 0
+	);
+}
+
+class BotRunner {
+	constructor({
+		io
+	}) {
+		this.io =
+			io;
+
+		this.timers =
+			new Map();
+	}
+
+	getTimerKey(
+		game,
+		bot
+	) {
+		return (
+			`${game.roomName}:${bot.id}`
+		);
+	}
+
+	clearTimer(
+		game,
+		bot
+	) {
+		const key =
+			this.getTimerKey(
+				game,
+				bot
+			);
+
+		const timer =
+			this.timers.get(
+				key
+			);
+
+		if (!timer)
+			return;
+
+		clearTimeout(
+			timer
+		);
+
+		this.timers.delete(
+			key
+		);
+	}
+
+	startGame(
+		game
+	) {
+		for (
+			const player
+			of game.players.values()
+		) {
+			if (
+				!player.isBot
+			) {
+				continue;
+			}
+
+			this.scheduleTurn(
+				game,
+				player,
+				true
+			);
+		}
+	}
+
+	scheduleTurn(
+		game,
+		bot,
+		firstTurn = false
+	) {
+		this.clearTimer(
+			game,
+			bot
+		);
+
+		if (
+			!game.started ||
+			!bot.alive
+		) {
+			return;
+		}
+
+		const config =
+			getBotDifficulty(
+				bot.difficulty
+			);
+
+		let delay =
+			config.thinkDelay;
+
+		if (
+			firstTurn &&
+			game.countdownEndsAt
+		) {
+			const countdownDelay =
+				Math.max(
+					0,
+					game.countdownEndsAt -
+						Date.now()
+				);
+
+			delay +=
+				countdownDelay;
+		}
+
+		const key =
+			this.getTimerKey(
+				game,
+				bot
+			);
+
+		const timer =
+			setTimeout(
+				() => {
+					this.timers.delete(
+						key
+					);
+
+					this.playTurn(
+						game,
+						bot
+					);
+				},
+				delay
+			);
+
+		this.timers.set(
+			key,
+			timer
+		);
+	}
+
+	playTurn(
+		game,
+		bot
+	) {
+		if (
+			!game.started ||
+			!bot.alive ||
+			!game.getPlayer(
+				bot.id
+			)
+		) {
+			return;
+		}
+
+		const pieceType =
+			game.getNextPiece(
+				bot
+			);
+
+		if (!pieceType) {
+			this.killBot(
+				game,
+				bot
+			);
+
+			return;
+		}
+
+		const controller =
+			new BotController(
+				bot
+			);
+
+		const move =
+			controller.chooseMove(
+				pieceType
+			);
+
+		if (!move) {
+			this.killBot(
+				game,
+				bot
+			);
+
+			return;
+		}
+
+		bot.board =
+			move.board;
+
+		if (
+			move.clearedLines >
+			0
+		) {
+			bot.score +=
+				calculateScore(
+					move.clearedLines
+				);
+		}
+
+		bot.spectrum =
+			calculateBotSpectrum(
+				bot.board
+			);
+
+		this.emitSpectrum(
+			game,
+			bot
+		);
+
+		/*
+		 * Same mandatory rule as
+		 * human players:
+		 *
+		 * N cleared lines =>
+		 * N - 1 penalty lines.
+		 */
+		if (
+			move.clearedLines >
+			1
+		) {
+			this.sendPenalty(
+				game,
+				bot,
+				move.clearedLines -
+					1
+			);
+		}
+
+		emitRoomState(
+			this.io,
+			game
+		);
+
+		this.scheduleTurn(
+			game,
+			bot
+		);
+	}
+
+	emitSpectrum(
+		game,
+		bot
+	) {
+		this.io.to(
+			game.roomName
+		).emit(
+			"spectrum:update",
+			{
+				playerId:
+					bot.id,
+
+				playerName:
+					bot.name,
+
+				spectrum:
+					bot.spectrum
+			}
+		);
+	}
+
+	applyPenalty(
+		game,
+		bot,
+		count,
+		from = null
+	) {
+		if (
+			!game.started ||
+			!bot.alive
+		) {
+			return;
+		}
+
+		const penaltyCount =
+			Math.max(
+				0,
+				Math.min(
+					3,
+					Math.floor(
+						Number(
+							count
+						) || 0
+					)
+				)
+			);
+
+		if (
+			penaltyCount === 0
+		) {
+			return;
+		}
+
+		bot.board =
+			addBotPenaltyLines(
+				bot.board,
+				penaltyCount
+			);
+
+		bot.spectrum =
+			calculateBotSpectrum(
+				bot.board
+			);
+
+		this.emitSpectrum(
+			game,
+			bot
+		);
+
+		console.log(
+			`Bot ${bot.name} received ${penaltyCount} penalty line(s)` +
+			(
+				from
+					? ` from ${from}`
+					: ""
+			)
+		);
+	}
+
+	sendPenalty(
+		game,
+		attacker,
+		count
+	) {
+		const penaltyCount =
+			Math.max(
+				0,
+				Math.min(
+					3,
+					Math.floor(
+						Number(
+							count
+						) || 0
+					)
+				)
+			);
+
+		if (
+			penaltyCount === 0
+		) {
+			return;
+		}
+
+		for (
+			const target
+			of game.players.values()
+		) {
+			if (
+				target.id ===
+					attacker.id ||
+				!target.alive
+			) {
+				continue;
+			}
+
+			if (
+				target.isBot
+			) {
+				this.applyPenalty(
+					game,
+					target,
+					penaltyCount,
+					attacker.name
+				);
+
+				continue;
+			}
+
+			if (
+				target.socketId
+			) {
+				this.io.to(
+					target.socketId
+				).emit(
+					"penalty:add",
+					{
+						count:
+							penaltyCount,
+
+						from:
+							attacker.name
+					}
+				);
+			}
+		}
+
+		console.log(
+			`Bot ${attacker.name} sent ${penaltyCount} penalty line(s)`
+		);
+	}
+
+	killBot(
+		game,
+		bot
+	) {
+		if (
+			!bot.alive
+		) {
+			return;
+		}
+
+		this.clearTimer(
+			game,
+			bot
+		);
+
+		game.markPlayerDead(
+			bot.id
+		);
+
+		console.log(
+			`Bot ${bot.name} finished with ${bot.score} points`
+		);
+
+		emitRoomState(
+			this.io,
+			game
+		);
+
+		this.resolveGame(
+			game
+		);
+	}
+
+	resolveGame(
+		game
+	) {
+		if (
+			!game.started
+		) {
+			return;
+		}
+
+		if (
+			game.activeMode ===
+			"battle-royale"
+		) {
+			const alivePlayers =
+				game.getAlivePlayers();
+
+			if (
+				alivePlayers.length >
+				1
+			) {
+				return;
+			}
+
+			const winner =
+				alivePlayers[0];
+
+			finishGame(
+				this.io,
+				game,
+				[
+					...(winner
+						? [winner]
+						: []),
+
+					...game.getRanking()
+				]
+			);
+
+			return;
+		}
+
+		if (
+			game.activeMode ===
+			"points"
+		) {
+			if (
+				!game.isFinished()
+			) {
+				return;
+			}
+
+			finishGame(
+				this.io,
+				game,
+				game.getPointsRanking()
+			);
+
+			return;
+		}
+
+		if (
+			game.isFinished()
+		) {
+			finishGame(
+				this.io,
+				game,
+				game.getRanking()
+			);
+		}
+	}
+}
+
+export default BotRunner;
+```
+
 ## `server/src/classes/Game.js`
 
 ```javascript
 import Piece from "./Piece.js";
 
 class Game {
-	constructor(roomName) {
-		this.roomName =
-			roomName;
 
-		this.players =
-			new Map();
+    constructor(roomName) {
 
-		this.hostId =
-			null;
+        this.roomName =
+            roomName;
 
-		this.started =
-			false;
+        this.players =
+            new Map();
 
-		this.roundId =
-			0;
+        this.hostId =
+            null;
 
-		this.pieces =
-			[];
+        this.started =
+            false;
 
-		/*
-		 * Stores player snapshots
-		 * instead of player ids.
-		 *
-		 * This allows disconnected
-		 * players to remain present
-		 * in the final ranking.
-		 */
-		this.eliminationOrder =
-			[];
+        this.roundId =
+            0;
 
-		/*
-		 * Players removed during an
-		 * active round are kept here
-		 * for Points ranking.
-		 */
-		this.departedPlayers =
-			[];
+        this.pieces =
+            [];
 
-		this.mode =
-			"battle-royale";
+        /*
+         * Stores player snapshots
+         * instead of player ids.
+         *
+         * This allows disconnected
+         * players to remain present
+         * in the final ranking.
+         */
 
-		this.activeMode =
-			null;
+        this.eliminationOrder =
+            [];
 
-		this.countdownEndsAt =
-			null;
-	}
+        /*
+         * Players removed during an
+         * active round are kept here
+         * for Points ranking.
+         */
 
-	addPlayer(player) {
-		const existingPlayer =
-			this.players.get(
-				player.id
-			);
+        this.departedPlayers =
+            [];
 
-		if (existingPlayer) {
-			existingPlayer.reconnect(
-				player.socketId
-			);
+        this.mode =
+            "battle-royale";
 
-			existingPlayer.name =
-				player.name;
+        this.activeMode =
+            null;
 
-			return existingPlayer;
-		}
+        this.countdownEndsAt =
+            null;
 
-		this.players.set(
-			player.id,
-			player
-		);
+    }
 
-		if (
-			this.hostId === null
-		) {
-			this.hostId =
-				player.id;
+    addPlayer(player) {
 
-			player.isHost =
-				true;
-		}
+        const existingPlayer =
+            this.players.get(
+                player.id
+            );
 
-		return player;
-	}
+        if (existingPlayer) {
 
-	removePlayer(playerId) {
-		const player =
-			this.players.get(
-				playerId
-			);
+            existingPlayer.reconnect(
+                player.socketId
+            );
 
-		if (!player)
-			return;
+            existingPlayer.name =
+                player.name;
 
-		const wasHost =
-			this.hostId ===
-			playerId;
+            return existingPlayer;
 
-		this.players.delete(
-			playerId
-		);
+        }
 
-		if (wasHost) {
-			this.assignNewHost();
-		}
-	}
+        this.players.set(
+            player.id,
+            player
+        );
 
-	assignNewHost() {
-		for (
-			const player
-			of this.players.values()
-		) {
-			player.isHost =
-				false;
-		}
+        /*
+         * Only a human player
+         * can become host.
+         */
 
-		const nextPlayer =
-			this.players
-				.values()
-				.next()
-				.value;
+        if (
+            this.hostId === null &&
+            !player.isBot
+        ) {
 
-		if (!nextPlayer) {
-			this.hostId =
-				null;
+            this.hostId =
+                player.id;
 
-			return;
-		}
+            player.isHost =
+                true;
 
-		this.hostId =
-			nextPlayer.id;
+        }
 
-		nextPlayer.isHost =
-			true;
-	}
+        return player;
 
-	getPlayer(playerId) {
-		return this.players.get(
-			playerId
-		);
-	}
+    }
 
-	findPlayerBySocket(socketId) {
-		for (
-			const player
-			of this.players.values()
-		) {
-			if (
-				player.socketId ===
-				socketId
-			) {
-				return player;
-			}
-		}
+    removePlayer(playerId) {
 
-		return null;
-	}
+        const player =
+            this.players.get(
+                playerId
+            );
 
-	getPlayers() {
-		return Array.from(
-			this.players.values()
-		);
-	}
+        if (!player)
+            return;
 
-	setMode(mode) {
-		if (
-			mode !==
-				"battle-royale" &&
-			mode !==
-				"points"
-		) {
-			return false;
-		}
+        const wasHost =
+            this.hostId ===
+            playerId;
 
-		this.mode =
-			mode;
+        this.players.delete(
+            playerId
+        );
 
-		return true;
-	}
+        if (wasHost) {
 
-	/*
-	 * Create a small immutable
-	 * representation of a player
-	 * for rankings.
-	 */
-	createPlayerSnapshot(player) {
-		return {
-			id:
-				player.id,
+            this.assignNewHost();
 
-			name:
-				player.name,
+        }
 
-			score:
-				player.score
-		};
-	}
+    }
 
-	markPlayerDead(playerId) {
-		const player =
-			this.players.get(
-				playerId
-			);
+    assignNewHost() {
 
-		if (
-			!player ||
-			!player.alive
-		) {
-			return;
-		}
+        for (
 
-		player.alive =
-			false;
+            const player
 
-		this.eliminationOrder.push(
-			this.createPlayerSnapshot(
-				player
-			)
-		);
-	}
+            of this.players.values()
 
-	/*
-	 * Keep disconnected players
-	 * available for Points ranking
-	 * after removing them from the
-	 * active room.
-	 */
-	recordDepartedPlayer(player) {
-		const alreadyRecorded =
-			this.departedPlayers.some(
-				(departed) =>
-					departed.id ===
-					player.id
-			);
+        ) {
 
-		if (alreadyRecorded)
-			return;
+            player.isHost =
+                false;
 
-		this.departedPlayers.push(
-			this.createPlayerSnapshot(
-				player
-			)
-		);
-	}
+        }
 
-	getAlivePlayers() {
-		return this
-			.getPlayers()
-			.filter(
-				(player) =>
-					player.alive
-			);
-	}
+        /*
+         * Bots cannot become host.
+         */
 
-	isFinished() {
-		return (
-			this
-				.getAlivePlayers()
-				.length ===
-			0
-		);
-	}
+        const nextPlayer =
+            this.getPlayers()
+                .find(
+                    (player) =>
+                        !player.isBot
+                );
 
-	/*
-	 * Battle Royale ranking.
-	 *
-	 * Last eliminated player is
-	 * ranked higher than players
-	 * eliminated before them.
-	 */
-	getRanking() {
-		return [
-			...this.eliminationOrder
-		].reverse();
-	}
+        if (!nextPlayer) {
 
-	/*
-	 * Points ranking includes both
-	 * players still present and
-	 * players that disconnected.
-	 */
-	getPointsRanking() {
-		const players = [
-			...this.getPlayers(),
-			...this.departedPlayers
-		];
+            this.hostId =
+                null;
 
-		/*
-		 * Prevent duplicates in case
-		 * a player was already stored.
-		 */
-		const uniquePlayers =
-			Array.from(
-				new Map(
-					players.map(
-						(player) => [
-							player.id,
-							player
-						]
-					)
-				).values()
-			);
+            return;
 
-		return uniquePlayers.sort(
-			(a, b) =>
-				b.score -
-				a.score
-		);
-	}
+        }
 
-	/*
-	 * Generate one shuffled
-	 * seven-piece bag.
-	 */
-	generateBag() {
-		return Piece.generateBag();
-	}
+        this.hostId =
+            nextPlayer.id;
 
-	/*
-	 * Generate the shared sequence
-	 * used by every player in
-	 * the current round.
-	 */
-	generateSequence(
-		bagCount = 20
-	) {
-		this.pieces =
-			[];
+        nextPlayer.isHost =
+            true;
 
-		for (
-			let i = 0;
-			i < bagCount;
-			i++
-		) {
-			const bag =
-				this.generateBag();
+    }
 
-			this.pieces.push(
-				...bag
-			);
-		}
-	}
+    getPlayer(playerId) {
 
-	/*
-	 * Game stores Piece instances
-	 * internally.
-	 *
-	 * The client only receives the
-	 * piece type, for example "T".
-	 */
-	getNextPiece(player) {
-		const piece =
-			this.pieces[
-				player.pieceIndex
-			];
+        return this.players.get(
+            playerId
+        );
 
-		if (!piece)
-			return null;
+    }
 
-		player.pieceIndex++;
+    findPlayerBySocket(socketId) {
 
-		return piece.type;
-	}
+        for (
 
-	peekNextPiece(player) {
-		const piece =
-			this.pieces[
-				player.pieceIndex
-			];
+            const player
 
-		return piece
-			? piece.type
-			: null;
-	}
+            of this.players.values()
+
+        ) {
+
+            if (
+                player.socketId ===
+                socketId
+            ) {
+
+                return player;
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+    getPlayers() {
+
+        return Array.from(
+            this.players.values()
+        );
+
+    }
+
+    setMode(mode) {
+
+        if (
+            mode !==
+                "battle-royale" &&
+            mode !==
+                "points"
+        ) {
+
+            return false;
+
+        }
+
+        this.mode =
+            mode;
+
+        return true;
+
+    }
+
+    /*
+     * Create a small immutable
+     * representation of a player
+     * for rankings.
+     *
+     * isBot is preserved so the
+     * client can still display the
+     * BOT badge in final rankings.
+     */
+
+    createPlayerSnapshot(player) {
+
+        return {
+
+            id:
+                player.id,
+
+            name:
+                player.name,
+
+            score:
+                player.score,
+
+            isBot:
+                Boolean(
+                    player.isBot
+                )
+
+        };
+
+    }
+
+    markPlayerDead(playerId) {
+
+        const player =
+            this.players.get(
+                playerId
+            );
+
+        if (
+            !player ||
+            !player.alive
+        ) {
+
+            return;
+
+        }
+
+        player.alive =
+            false;
+
+        this.eliminationOrder.push(
+            this.createPlayerSnapshot(
+                player
+            )
+        );
+
+    }
+
+    /*
+     * Keep disconnected players
+     * available for Points ranking
+     * after removing them from the
+     * active room.
+     */
+
+    recordDepartedPlayer(player) {
+
+        const alreadyRecorded =
+            this.departedPlayers.some(
+                (departed) =>
+                    departed.id ===
+                    player.id
+            );
+
+        if (alreadyRecorded)
+            return;
+
+        this.departedPlayers.push(
+            this.createPlayerSnapshot(
+                player
+            )
+        );
+
+    }
+
+    getAlivePlayers() {
+
+        return this
+            .getPlayers()
+            .filter(
+                (player) =>
+                    player.alive
+            );
+
+    }
+
+    isFinished() {
+
+        return (
+            this
+                .getAlivePlayers()
+                .length ===
+            0
+        );
+
+    }
+
+    /*
+     * Battle Royale ranking.
+     *
+     * Last eliminated player is
+     * ranked higher than players
+     * eliminated before them.
+     */
+
+    getRanking() {
+
+        return [
+            ...this.eliminationOrder
+        ].reverse();
+
+    }
+
+    /*
+     * Points ranking includes both
+     * players still present and
+     * players that disconnected.
+     */
+
+    getPointsRanking() {
+
+        const players = [
+            ...this.getPlayers(),
+            ...this.departedPlayers
+        ];
+
+        /*
+         * Prevent duplicates in case
+         * a player was already stored.
+         */
+
+        const uniquePlayers =
+            Array.from(
+
+                new Map(
+
+                    players.map(
+                        (player) => [
+                            player.id,
+                            player
+                        ]
+                    )
+
+                ).values()
+
+            );
+
+        return uniquePlayers.sort(
+            (a, b) =>
+                b.score -
+                a.score
+        );
+
+    }
+
+    /*
+     * Generate one shuffled
+     * seven-piece bag.
+     */
+
+    generateBag() {
+
+        return Piece.generateBag();
+
+    }
+
+    /*
+     * Generate the shared sequence
+     * used by every player in
+     * the current round.
+     */
+
+    generateSequence(
+        bagCount = 20
+    ) {
+
+        this.pieces =
+            [];
+
+        for (
+            let i = 0;
+            i < bagCount;
+            i++
+        ) {
+
+            const bag =
+                this.generateBag();
+
+            this.pieces.push(
+                ...bag
+            );
+
+        }
+
+    }
+
+    /*
+     * Game stores Piece instances
+     * internally.
+     *
+     * The client only receives the
+     * piece type, for example "T".
+     */
+
+    getNextPiece(player) {
+
+        const piece =
+            this.pieces[
+                player.pieceIndex
+            ];
+
+        if (!piece)
+            return null;
+
+        player.pieceIndex++;
+
+        return piece.type;
+
+    }
+
+    peekNextPiece(player) {
+
+        const piece =
+            this.pieces[
+                player.pieceIndex
+            ];
+
+        return piece
+            ? piece.type
+            : null;
+
+    }
+
 }
 
 export default Game;
@@ -7336,6 +9294,10 @@ export default Player;
 ```javascript
 import Game from "../classes/Game.js";
 
+import {
+	MAX_PLAYERS
+} from "../../../shared/constants.js";
+
 class GameManager {
 	constructor() {
 		this.games =
@@ -7417,7 +9379,9 @@ class GameManager {
 			of this.games.values()
 		) {
 			if (
-				!game.started
+				!game.started &&
+				game.getPlayers().length <
+					MAX_PLAYERS
 			) {
 				return game;
 			}
@@ -7890,7 +9854,12 @@ export function buildRoomState(
 					isHost:
 						player.id ===
 						game.hostId,
-
+					
+					isBot:
+						Boolean(
+							player.isBot
+						),
+					
 					alive:
 						player.alive,
 
@@ -7916,12 +9885,210 @@ export function emitRoomState(
 }
 ```
 
+## `server/src/socket/botHandlers.js`
+
+```javascript
+import {
+	randomUUID
+} from "crypto";
+
+import BotPlayer
+	from "../bots/botPlayer.js";
+
+import {
+	BOT_PROFILES
+} from "../bots/botProfiles.js";
+
+import {
+	emitRoomState
+} from "../services/roomState.js";
+
+import {
+	MAX_PLAYERS
+} from "../../../shared/constants.js";
+
+function getAvailableProfile(
+	game
+) {
+	const usedNames =
+		new Set(
+			game
+				.getPlayers()
+				.map(
+					(player) =>
+						player.name
+				)
+		);
+
+	const availableProfiles =
+		BOT_PROFILES.filter(
+			(profile) =>
+				!usedNames.has(
+					profile.name
+				)
+		);
+
+	const pool =
+		availableProfiles.length > 0
+			? availableProfiles
+			: BOT_PROFILES;
+
+	return pool[
+		Math.floor(
+			Math.random() *
+				pool.length
+		)
+	];
+}
+
+export function registerBotHandlers({
+	io,
+	socket,
+	gameManager
+}) {
+	socket.on(
+		"bot:add",
+		({ room }) => {
+			const game =
+				gameManager.getGame(
+					room
+				);
+
+			if (
+				!game ||
+				game.started
+			) {
+				return;
+			}
+
+			const player =
+				game.findPlayerBySocket(
+					socket.id
+				);
+
+			if (
+				!player ||
+				game.hostId !==
+					player.id
+			) {
+				return;
+			}
+
+			if (
+				game.getPlayers().length >=
+				MAX_PLAYERS
+			) {
+				socket:emit(
+					"room:error",
+					{
+						message:
+							"Room is full"
+					}
+				);
+				return;
+			}
+
+			const profile =
+				getAvailableProfile(
+					game
+				);
+
+			const bot =
+				new BotPlayer({
+					playerId:
+						`bot-${randomUUID()}`,
+
+					name:
+						profile.name,
+
+					difficulty:
+						profile.difficulty
+				});
+
+			game.addPlayer(
+				bot
+			);
+
+			emitRoomState(
+				io,
+				game
+			);
+
+			console.log(
+				`Bot ${bot.name} added to ${room}`
+			);
+		}
+	);
+
+	socket.on(
+		"bot:remove",
+		({
+			room,
+			botId
+		}) => {
+			const game =
+				gameManager.getGame(
+					room
+				);
+
+			if (
+				!game ||
+				game.started
+			) {
+				return;
+			}
+
+			const player =
+				game.findPlayerBySocket(
+					socket.id
+				);
+
+			if (
+				!player ||
+				game.hostId !==
+					player.id
+			) {
+				return;
+			}
+
+			const bot =
+				game.getPlayer(
+					botId
+				);
+
+			if (
+				!bot ||
+				!bot.isBot
+			) {
+				return;
+			}
+
+			game.removePlayer(
+				bot.id
+			);
+
+			emitRoomState(
+				io,
+				game
+			);
+
+			console.log(
+				`Bot ${bot.name} removed from ${room}`
+			);
+		}
+	);
+}
+```
+
 ## `server/src/socket/connection.js`
 
 ```javascript
 import {
 	createDisconnectTimers
 } from "../services/disconnectTimers.js";
+
+import BotRunner
+	from "../bots/botRunner.js";
 
 import {
 	registerRoomHandlers
@@ -7951,12 +10118,21 @@ import {
 	registerDisconnectHandlers
 } from "./disconnectHandlers.js";
 
+import {
+	registerBotHandlers
+} from "./botHandlers.js";
+
 export function registerSocketHandlers({
 	io,
 	gameManager
 }) {
 	const disconnectTimers =
 		createDisconnectTimers();
+
+	const botRunner =
+		new BotRunner({
+			io
+		});
 
 	io.on(
 		"connection",
@@ -7982,7 +10158,8 @@ export function registerSocketHandlers({
 			registerGameHandlers({
 				io,
 				socket,
-				gameManager
+				gameManager,
+				botRunner
 			});
 
 			registerPieceHandlers({
@@ -7993,10 +10170,17 @@ export function registerSocketHandlers({
 			registerPenaltyHandlers({
 				io,
 				socket,
-				gameManager
+				gameManager,
+				botRunner
 			});
 
 			registerSpectrumHandlers({
+				socket,
+				gameManager
+			});
+
+			registerBotHandlers({
+				io,
 				socket,
 				gameManager
 			});
@@ -8157,17 +10341,21 @@ import {
 export function registerGameHandlers({
 	io,
 	socket,
-	gameManager
+	gameManager,
+	botRunner
 }) {
+
 	/*
 	 * GAME MODE
 	 */
+
 	socket.on(
 		"game:mode",
 		({
 			room,
 			mode
 		}) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -8218,15 +10406,18 @@ export function registerGameHandlers({
 			console.log(
 				`Game ${room} mode: ${mode}`
 			);
+
 		}
 	);
 
 	/*
 	 * START
 	 */
+
 	socket.on(
 		"game:start",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -8281,6 +10472,17 @@ export function registerGameHandlers({
 				const roomPlayer
 				of game.players.values()
 			) {
+
+				if (
+					roomPlayer.isBot &&
+					typeof roomPlayer.resetBot ===
+						"function"
+				) {
+					roomPlayer.resetBot();
+
+					continue;
+				}
+
 				roomPlayer.alive =
 					true;
 
@@ -8292,6 +10494,7 @@ export function registerGameHandlers({
 
 				roomPlayer.score =
 					0;
+
 			}
 
 			emitRoomState(
@@ -8299,21 +10502,35 @@ export function registerGameHandlers({
 				game
 			);
 
+			/*
+			 * Start all bots after
+			 * room state has been sent.
+			 *
+			 * BotRunner will respect
+			 * countdownEndsAt.
+			 */
+			botRunner.startGame(
+				game
+			);
+
 			console.log(
 				`Game ${room} started by ${player.name} (${game.activeMode})`
 			);
+
 		}
 	);
 
 	/*
 	 * SCORE
 	 */
+
 	socket.on(
 		"score:update",
 		({
 			room,
 			score
 		}) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -8356,15 +10573,18 @@ export function registerGameHandlers({
 				Math.floor(
 					value
 				);
+
 		}
 	);
 
 	/*
 	 * PLAYER DEAD
 	 */
+
 	socket.on(
 		"player:dead",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -8406,6 +10626,7 @@ export function registerGameHandlers({
 				game.activeMode ===
 				"battle-royale"
 			) {
+
 				const alivePlayers =
 					game.getAlivePlayers();
 
@@ -8432,12 +10653,14 @@ export function registerGameHandlers({
 				);
 
 				return;
+
 			}
 
 			if (
 				game.activeMode ===
 				"points"
 			) {
+
 				if (
 					!game.isFinished()
 				) {
@@ -8451,6 +10674,7 @@ export function registerGameHandlers({
 				);
 
 				return;
+
 			}
 
 			if (
@@ -8464,15 +10688,18 @@ export function registerGameHandlers({
 				game,
 				game.getRanking()
 			);
+
 		}
 	);
 
 	/*
 	 * RETURN TO LOBBY
 	 */
+
 	socket.on(
 		"game:restart",
 		({ room }) => {
+
 			const game =
 				gameManager.getGame(
 					room
@@ -8515,6 +10742,17 @@ export function registerGameHandlers({
 				const roomPlayer
 				of game.players.values()
 			) {
+
+				if (
+					roomPlayer.isBot &&
+					typeof roomPlayer.resetBot ===
+						"function"
+				) {
+					roomPlayer.resetBot();
+
+					continue;
+				}
+
 				roomPlayer.alive =
 					true;
 
@@ -8526,6 +10764,7 @@ export function registerGameHandlers({
 
 				roomPlayer.score =
 					0;
+
 			}
 
 			io.to(
@@ -8542,8 +10781,10 @@ export function registerGameHandlers({
 			console.log(
 				`Game ${room} returned to lobby by ${player.name}`
 			);
+
 		}
 	);
+
 }
 ```
 
@@ -8768,7 +11009,8 @@ export function registerMatchmakingHandlers({
 export function registerPenaltyHandlers({
 	io,
 	socket,
-	gameManager
+	gameManager,
+	botRunner
 }) {
 	socket.on(
 		"penalty:send",
@@ -8805,9 +11047,11 @@ export function registerPenaltyHandlers({
 					0,
 					Math.min(
 						3,
-						Number(
-							count
-						) || 0
+						Math.floor(
+							Number(
+								count
+							) || 0
+						)
 					)
 				);
 
@@ -8830,18 +11074,35 @@ export function registerPenaltyHandlers({
 					continue;
 				}
 
-				io.to(
-					target.socketId
-				).emit(
-					"penalty:add",
-					{
-						count:
-							penaltyCount,
+				if (
+					target.isBot
+				) {
+					botRunner.applyPenalty(
+						game,
+						target,
+						penaltyCount,
+						attacker.name
+					);
 
-						from:
-							attacker.name
-					}
-				);
+					continue;
+				}
+
+				if (
+					target.socketId
+				) {
+					io.to(
+						target.socketId
+					).emit(
+						"penalty:add",
+						{
+							count:
+								penaltyCount,
+
+							from:
+								attacker.name
+						}
+					);
+				}
 			}
 
 			console.log(
@@ -8939,6 +11200,10 @@ import {
 import {
 	removePlayerFromGame
 } from "../services/roomLifecycle.js";
+
+import {
+	MAX_PLAYERS
+} from "../../../shared/constants.js";
 
 export function registerRoomHandlers({
 	io,
@@ -9043,6 +11308,21 @@ export function registerRoomHandlers({
 				game.getPlayer(
 					playerId
 				);
+
+			if (
+				!existingPlayer && 
+				game.getPlayers().length >= 
+					MAX_PLAYERS
+			) {
+				socket.emit(
+					"room:error",
+					{
+						message:
+							"Room is full"
+					}
+				);
+				return;
+			}
 
 			if (
 				game.started &&
@@ -9316,7 +11596,43 @@ export function validatePlayerId(
 ## `shared/constants.js`
 
 ```javascript
+export const MAX_PLAYERS = 5;
 
+export const TETRIMINOS = {
+	I: [
+		[1, 1, 1, 1]
+	],
+
+	O: [
+		[1, 1],
+		[1, 1]
+	],
+
+	T: [
+		[0, 1, 0],
+		[1, 1, 1]
+	],
+
+	S: [
+		[0, 1, 1],
+		[1, 1, 0]
+	],
+
+	Z: [
+		[1, 1, 0],
+		[0, 1, 1]
+	],
+
+	J: [
+		[1, 0, 0],
+		[1, 1, 1]
+	],
+
+	L: [
+		[0, 0, 1],
+		[1, 1, 1]
+	]
+};
 ```
 
 ## `shared/events.js`

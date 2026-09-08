@@ -1,378 +1,480 @@
 import Piece from "./Piece.js";
 
 class Game {
-	constructor(roomName) {
-		this.roomName =
-			roomName;
 
-		this.players =
-			new Map();
+    constructor(roomName) {
 
-		this.hostId =
-			null;
+        this.roomName =
+            roomName;
 
-		this.started =
-			false;
+        this.players =
+            new Map();
 
-		this.roundId =
-			0;
+        this.hostId =
+            null;
 
-		this.pieces =
-			[];
+        this.started =
+            false;
 
-		/*
-		 * Stores player snapshots
-		 * instead of player ids.
-		 *
-		 * This allows disconnected
-		 * players to remain present
-		 * in the final ranking.
-		 */
-		this.eliminationOrder =
-			[];
+        this.roundId =
+            0;
 
-		/*
-		 * Players removed during an
-		 * active round are kept here
-		 * for Points ranking.
-		 */
-		this.departedPlayers =
-			[];
+        this.pieces =
+            [];
 
-		this.mode =
-			"battle-royale";
+        /*
+         * Stores player snapshots
+         * instead of player ids.
+         *
+         * This allows disconnected
+         * players to remain present
+         * in the final ranking.
+         */
 
-		this.activeMode =
-			null;
+        this.eliminationOrder =
+            [];
 
-		this.countdownEndsAt =
-			null;
-	}
+        /*
+         * Players removed during an
+         * active round are kept here
+         * for Points ranking.
+         */
 
-	addPlayer(player) {
-		const existingPlayer =
-			this.players.get(
-				player.id
-			);
+        this.departedPlayers =
+            [];
 
-		if (existingPlayer) {
-			existingPlayer.reconnect(
-				player.socketId
-			);
+        this.mode =
+            "battle-royale";
 
-			existingPlayer.name =
-				player.name;
+        this.activeMode =
+            null;
 
-			return existingPlayer;
-		}
+        this.countdownEndsAt =
+            null;
 
-		this.players.set(
-			player.id,
-			player
-		);
+    }
 
-		if (
-			this.hostId === null
-		) {
-			this.hostId =
-				player.id;
+    addPlayer(player) {
 
-			player.isHost =
-				true;
-		}
+        const existingPlayer =
+            this.players.get(
+                player.id
+            );
 
-		return player;
-	}
+        if (existingPlayer) {
 
-	removePlayer(playerId) {
-		const player =
-			this.players.get(
-				playerId
-			);
+            existingPlayer.reconnect(
+                player.socketId
+            );
 
-		if (!player)
-			return;
+            existingPlayer.name =
+                player.name;
 
-		const wasHost =
-			this.hostId ===
-			playerId;
+            return existingPlayer;
 
-		this.players.delete(
-			playerId
-		);
+        }
 
-		if (wasHost) {
-			this.assignNewHost();
-		}
-	}
+        this.players.set(
+            player.id,
+            player
+        );
 
-	assignNewHost() {
-		for (
-			const player
-			of this.players.values()
-		) {
-			player.isHost =
-				false;
-		}
+        /*
+         * Only a human player
+         * can become host.
+         */
 
-		const nextPlayer =
-			this.players
-				.values()
-				.next()
-				.value;
+        if (
+            this.hostId === null &&
+            !player.isBot
+        ) {
 
-		if (!nextPlayer) {
-			this.hostId =
-				null;
+            this.hostId =
+                player.id;
 
-			return;
-		}
+            player.isHost =
+                true;
 
-		this.hostId =
-			nextPlayer.id;
+        }
 
-		nextPlayer.isHost =
-			true;
-	}
+        return player;
 
-	getPlayer(playerId) {
-		return this.players.get(
-			playerId
-		);
-	}
+    }
 
-	findPlayerBySocket(socketId) {
-		for (
-			const player
-			of this.players.values()
-		) {
-			if (
-				player.socketId ===
-				socketId
-			) {
-				return player;
-			}
-		}
+    removePlayer(playerId) {
 
-		return null;
-	}
+        const player =
+            this.players.get(
+                playerId
+            );
 
-	getPlayers() {
-		return Array.from(
-			this.players.values()
-		);
-	}
+        if (!player)
+            return;
 
-	setMode(mode) {
-		if (
-			mode !==
-				"battle-royale" &&
-			mode !==
-				"points"
-		) {
-			return false;
-		}
+        const wasHost =
+            this.hostId ===
+            playerId;
 
-		this.mode =
-			mode;
+        this.players.delete(
+            playerId
+        );
 
-		return true;
-	}
+        if (wasHost) {
 
-	/*
-	 * Create a small immutable
-	 * representation of a player
-	 * for rankings.
-	 */
-	createPlayerSnapshot(player) {
-		return {
-			id:
-				player.id,
+            this.assignNewHost();
 
-			name:
-				player.name,
+        }
 
-			score:
-				player.score
-		};
-	}
+    }
 
-	markPlayerDead(playerId) {
-		const player =
-			this.players.get(
-				playerId
-			);
+    assignNewHost() {
 
-		if (
-			!player ||
-			!player.alive
-		) {
-			return;
-		}
+        for (
 
-		player.alive =
-			false;
+            const player
 
-		this.eliminationOrder.push(
-			this.createPlayerSnapshot(
-				player
-			)
-		);
-	}
+            of this.players.values()
 
-	/*
-	 * Keep disconnected players
-	 * available for Points ranking
-	 * after removing them from the
-	 * active room.
-	 */
-	recordDepartedPlayer(player) {
-		const alreadyRecorded =
-			this.departedPlayers.some(
-				(departed) =>
-					departed.id ===
-					player.id
-			);
+        ) {
 
-		if (alreadyRecorded)
-			return;
+            player.isHost =
+                false;
 
-		this.departedPlayers.push(
-			this.createPlayerSnapshot(
-				player
-			)
-		);
-	}
+        }
 
-	getAlivePlayers() {
-		return this
-			.getPlayers()
-			.filter(
-				(player) =>
-					player.alive
-			);
-	}
+        /*
+         * Bots cannot become host.
+         */
 
-	isFinished() {
-		return (
-			this
-				.getAlivePlayers()
-				.length ===
-			0
-		);
-	}
+        const nextPlayer =
+            this.getPlayers()
+                .find(
+                    (player) =>
+                        !player.isBot
+                );
 
-	/*
-	 * Battle Royale ranking.
-	 *
-	 * Last eliminated player is
-	 * ranked higher than players
-	 * eliminated before them.
-	 */
-	getRanking() {
-		return [
-			...this.eliminationOrder
-		].reverse();
-	}
+        if (!nextPlayer) {
 
-	/*
-	 * Points ranking includes both
-	 * players still present and
-	 * players that disconnected.
-	 */
-	getPointsRanking() {
-		const players = [
-			...this.getPlayers(),
-			...this.departedPlayers
-		];
+            this.hostId =
+                null;
 
-		/*
-		 * Prevent duplicates in case
-		 * a player was already stored.
-		 */
-		const uniquePlayers =
-			Array.from(
-				new Map(
-					players.map(
-						(player) => [
-							player.id,
-							player
-						]
-					)
-				).values()
-			);
+            return;
 
-		return uniquePlayers.sort(
-			(a, b) =>
-				b.score -
-				a.score
-		);
-	}
+        }
 
-	/*
-	 * Generate one shuffled
-	 * seven-piece bag.
-	 */
-	generateBag() {
-		return Piece.generateBag();
-	}
+        this.hostId =
+            nextPlayer.id;
 
-	/*
-	 * Generate the shared sequence
-	 * used by every player in
-	 * the current round.
-	 */
-	generateSequence(
-		bagCount = 20
-	) {
-		this.pieces =
-			[];
+        nextPlayer.isHost =
+            true;
 
-		for (
-			let i = 0;
-			i < bagCount;
-			i++
-		) {
-			const bag =
-				this.generateBag();
+    }
 
-			this.pieces.push(
-				...bag
-			);
-		}
-	}
+    getPlayer(playerId) {
 
-	/*
-	 * Game stores Piece instances
-	 * internally.
-	 *
-	 * The client only receives the
-	 * piece type, for example "T".
-	 */
-	getNextPiece(player) {
-		const piece =
-			this.pieces[
-				player.pieceIndex
-			];
+        return this.players.get(
+            playerId
+        );
 
-		if (!piece)
-			return null;
+    }
 
-		player.pieceIndex++;
+    findPlayerBySocket(socketId) {
 
-		return piece.type;
-	}
+        for (
 
-	peekNextPiece(player) {
-		const piece =
-			this.pieces[
-				player.pieceIndex
-			];
+            const player
 
-		return piece
-			? piece.type
-			: null;
-	}
+            of this.players.values()
+
+        ) {
+
+            if (
+                player.socketId ===
+                socketId
+            ) {
+
+                return player;
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+    getPlayers() {
+
+        return Array.from(
+            this.players.values()
+        );
+
+    }
+
+    setMode(mode) {
+
+        if (
+            mode !==
+                "battle-royale" &&
+            mode !==
+                "points"
+        ) {
+
+            return false;
+
+        }
+
+        this.mode =
+            mode;
+
+        return true;
+
+    }
+
+    /*
+     * Create a small immutable
+     * representation of a player
+     * for rankings.
+     *
+     * isBot is preserved so the
+     * client can still display the
+     * BOT badge in final rankings.
+     */
+
+    createPlayerSnapshot(player) {
+
+        return {
+
+            id:
+                player.id,
+
+            name:
+                player.name,
+
+            score:
+                player.score,
+
+            isBot:
+                Boolean(
+                    player.isBot
+                )
+
+        };
+
+    }
+
+    markPlayerDead(playerId) {
+
+        const player =
+            this.players.get(
+                playerId
+            );
+
+        if (
+            !player ||
+            !player.alive
+        ) {
+
+            return;
+
+        }
+
+        player.alive =
+            false;
+
+        this.eliminationOrder.push(
+            this.createPlayerSnapshot(
+                player
+            )
+        );
+
+    }
+
+    /*
+     * Keep disconnected players
+     * available for Points ranking
+     * after removing them from the
+     * active room.
+     */
+
+    recordDepartedPlayer(player) {
+
+        const alreadyRecorded =
+            this.departedPlayers.some(
+                (departed) =>
+                    departed.id ===
+                    player.id
+            );
+
+        if (alreadyRecorded)
+            return;
+
+        this.departedPlayers.push(
+            this.createPlayerSnapshot(
+                player
+            )
+        );
+
+    }
+
+    getAlivePlayers() {
+
+        return this
+            .getPlayers()
+            .filter(
+                (player) =>
+                    player.alive
+            );
+
+    }
+
+    isFinished() {
+
+        return (
+            this
+                .getAlivePlayers()
+                .length ===
+            0
+        );
+
+    }
+
+    /*
+     * Battle Royale ranking.
+     *
+     * Last eliminated player is
+     * ranked higher than players
+     * eliminated before them.
+     */
+
+    getRanking() {
+
+        return [
+            ...this.eliminationOrder
+        ].reverse();
+
+    }
+
+    /*
+     * Points ranking includes both
+     * players still present and
+     * players that disconnected.
+     */
+
+    getPointsRanking() {
+
+        const players = [
+            ...this.getPlayers(),
+            ...this.departedPlayers
+        ];
+
+        /*
+         * Prevent duplicates in case
+         * a player was already stored.
+         */
+
+        const uniquePlayers =
+            Array.from(
+
+                new Map(
+
+                    players.map(
+                        (player) => [
+                            player.id,
+                            player
+                        ]
+                    )
+
+                ).values()
+
+            );
+
+        return uniquePlayers.sort(
+            (a, b) =>
+                b.score -
+                a.score
+        );
+
+    }
+
+    /*
+     * Generate one shuffled
+     * seven-piece bag.
+     */
+
+    generateBag() {
+
+        return Piece.generateBag();
+
+    }
+
+    /*
+     * Generate the shared sequence
+     * used by every player in
+     * the current round.
+     */
+
+    generateSequence(
+        bagCount = 20
+    ) {
+
+        this.pieces =
+            [];
+
+        for (
+            let i = 0;
+            i < bagCount;
+            i++
+        ) {
+
+            const bag =
+                this.generateBag();
+
+            this.pieces.push(
+                ...bag
+            );
+
+        }
+
+    }
+
+    /*
+     * Game stores Piece instances
+     * internally.
+     *
+     * The client only receives the
+     * piece type, for example "T".
+     */
+
+    getNextPiece(player) {
+
+        const piece =
+            this.pieces[
+                player.pieceIndex
+            ];
+
+        if (!piece)
+            return null;
+
+        player.pieceIndex++;
+
+        return piece.type;
+
+    }
+
+    peekNextPiece(player) {
+
+        const piece =
+            this.pieces[
+                player.pieceIndex
+            ];
+
+        return piece
+            ? piece.type
+            : null;
+
+    }
+
 }
 
 export default Game;

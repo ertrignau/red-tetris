@@ -14,6 +14,10 @@ import {
 	removePlayerFromGame
 } from "../services/roomLifecycle.js";
 
+import {
+	MAX_PLAYERS
+} from "../../../shared/constants.js";
+
 export function registerRoomHandlers({
 	io,
 	socket,
@@ -117,6 +121,21 @@ export function registerRoomHandlers({
 				game.getPlayer(
 					playerId
 				);
+
+			if (
+				!existingPlayer && 
+				game.getPlayers().length >= 
+					MAX_PLAYERS
+			) {
+				socket.emit(
+					"room:error",
+					{
+						message:
+							"Room is full"
+					}
+				);
+				return;
+			}
 
 			if (
 				game.started &&

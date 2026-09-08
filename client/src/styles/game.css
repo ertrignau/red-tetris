@@ -1266,3 +1266,172 @@ kbd {
 		transform: scale(1);
 	}
 }
+
+/* ================================= */
+/* BOTS */
+/* ================================= */
+
+.bot-badge {
+	flex-shrink: 0;
+
+	padding: 3px 6px;
+
+	border-radius: 4px;
+
+	background:
+		rgba(92, 174, 255, 0.13);
+
+	color:
+		#6eb7ff;
+
+	font-size: 8px;
+	font-weight: 900;
+
+	letter-spacing: 0.7px;
+}
+
+.add-bot-button {
+	width: 100%;
+
+	margin-top: 10px;
+	padding: 9px;
+
+	border:
+		1px solid #29354c;
+
+	border-radius: 7px;
+
+	background:
+		#0a0e17;
+
+	color:
+		#8996aa;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+
+	cursor: pointer;
+
+	transition:
+		border-color 0.15s ease,
+		color 0.15s ease,
+		background 0.15s ease;
+}
+
+.add-bot-button:hover {
+	border-color:
+		rgba(92, 174, 255, 0.6);
+
+	background:
+		rgba(92, 174, 255, 0.05);
+
+	color:
+		#6eb7ff;
+}
+
+.remove-bot-button {
+	width: 20px;
+	height: 20px;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	flex-shrink: 0;
+
+	padding: 0;
+
+	border: 0;
+	border-radius: 4px;
+
+	background:
+		rgba(255, 64, 87, 0.1);
+
+	color:
+		#ff6477;
+
+	font-size: 15px;
+	font-weight: 900;
+
+	line-height: 1;
+
+	cursor: pointer;
+}
+
+.remove-bot-button:hover {
+	background:
+		rgba(255, 64, 87, 0.22);
+}
+
+.player-count {
+	margin-left: auto;
+	padding: 3px 7px;
+
+	border: 1px solid #29354c;
+	border-radius: 5px;
+
+	background: #0a0e17;
+
+	color: #7f8da3;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1px;
+}
+
+.player-count-full {
+	border-color:
+		rgba(255, 64, 87, 0.5);
+
+	background:
+		rgba(255, 64, 87, 0.08);
+
+	color: #ff6477;
+}
+
+.room-full-message {
+	margin-top: 10px;
+	padding: 7px 10px;
+
+	border:
+		1px solid rgba(255, 64, 87, 0.35);
+
+	border-radius: 6px;
+
+	background:
+		rgba(255, 64, 87, 0.07);
+
+	color: #ff6477;
+
+	font-size: 9px;
+	font-weight: 900;
+
+	letter-spacing: 1.5px;
+
+	text-align: center;
+}
+
+.add-bot-button:disabled {
+	border-color: #242c3a;
+
+	background:
+		rgba(255, 255, 255, 0.02);
+
+	color: #495468;
+
+	cursor: not-allowed;
+
+	opacity: 0.65;
+}
+
+.add-bot-button:disabled:hover {
+	border-color: #242c3a;
+
+	background:
+		rgba(255, 255, 255, 0.02);
+
+	color: #495468;
+}

@@ -1,6 +1,11 @@
-import PlayerList from "../PlayerList/PlayerList.jsx";
-import GameStatus from "../GameStatus/GameStatus.jsx";
-import GameSidePanel from "../GameSidePanel/GameSidePanel.jsx";
+import PlayerList
+	from "../PlayerList/PlayerList.jsx";
+
+import GameStatus
+	from "../GameStatus/GameStatus.jsx";
+
+import GameSidePanel
+	from "../GameSidePanel/GameSidePanel.jsx";
 
 function GameLayout({
 	roomState,
@@ -13,6 +18,8 @@ function GameLayout({
 
 	onStart,
 	onModeChange,
+	onAddBot,
+	onRemoveBot,
 
 	showBoard,
 	isFinishing,
@@ -32,26 +39,41 @@ function GameLayout({
 				roomState={
 					roomState
 				}
+
 				player={
 					player
 				}
+
 				playerId={
 					playerId
 				}
+
 				error={
 					error
 				}
+
 				isHost={
 					isHost
 				}
+
 				onStart={
 					onStart
 				}
+
 				mode={
 					roomState?.mode
 				}
+
 				onModeChange={
 					onModeChange
+				}
+
+				onAddBot={
+					onAddBot
+				}
+
+				onRemoveBot={
+					onRemoveBot
 				}
 			/>
 
@@ -59,21 +81,27 @@ function GameLayout({
 				started={
 					showBoard
 				}
+
 				finishing={
 					isFinishing
 				}
+
 				board={
 					board
 				}
+
 				currentPiece={
 					currentPiece
 				}
+
 				gameOver={
 					gameOver
 				}
+
 				score={
 					score
 				}
+
 				countdown={
 					countdown
 				}
@@ -83,9 +111,11 @@ function GameLayout({
 				score={
 					score
 				}
+
 				nextPiece={
 					nextPiece
 				}
+
 				opponents={
 					opponents
 				}

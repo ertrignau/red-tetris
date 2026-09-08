@@ -268,7 +268,9 @@ function useGameController(
 	 */
 	const {
 		handleModeChange,
-		handleStart
+		handleStart,
+		handleAddBot,
+		handleRemoveBot
 	} = useGameActions({
 		room,
 		roomState,
@@ -329,7 +331,9 @@ function useGameController(
 		 */
 		handleStart,
 		handleModeChange,
-		handleRestart
+		handleRestart,
+		handleAddBot,
+		handleRemoveBot
 	};
 }
 

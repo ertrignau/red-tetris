@@ -1,45 +1,23 @@
-export const TETRIMINOS = {
-	I: [
-		[1, 1, 1, 1]
-	],
+import {
+	TETRIMINOS
+} from "../../../shared/constants.js";
 
-	O: [
-		[1, 1],
-		[1, 1]
-	],
-
-	T: [
-		[0, 1, 0],
-		[1, 1, 1]
-	],
-
-	S: [
-		[0, 1, 1],
-		[1, 1, 0]
-	],
-
-	Z: [
-		[1, 1, 0],
-		[0, 1, 1]
-	],
-
-	J: [
-		[1, 0, 0],
-		[1, 1, 1]
-	],
-
-	L: [
-		[0, 0, 1],
-		[1, 1, 1]
-	]
+export {
+	TETRIMINOS
 };
 
 export function createPiece(type) {
 	return {
 		type,
-		shape: TETRIMINOS[type],
+
+		shape:
+			TETRIMINOS[
+				type
+			],
+
 		x: 3,
 		y: 0,
+
 		rotation: 0
 	};
 }

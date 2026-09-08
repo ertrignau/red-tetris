@@ -1,3 +1,7 @@
+import {
+	MAX_PLAYERS
+} from "../../../../shared/constants.js";
+
 function PlayerList({
 	roomState,
 	player,
@@ -6,10 +10,23 @@ function PlayerList({
 	isHost,
 	onStart,
 	mode,
-	onModeChange
+	onModeChange,
+	onAddBot,
+	onRemoveBot
 }) {
 	const hasMultiplePlayers =
-		(roomState?.players?.length ?? 0) > 1;
+		(
+			roomState
+				?.players
+				?.length ??
+			0
+		) > 1;
+
+	const playerCount =
+		roomState?.players?.length ?? 0;
+
+	const roomIsFull =
+		playerCount >= MAX_PLAYERS;
 
 	const modeLabel =
 		mode === "points"
@@ -24,6 +41,16 @@ function PlayerList({
 				<h2>
 					Players
 				</h2>
+
+				<span
+					className={
+						roomIsFull
+							? "player-count player-count-full"
+							: "player-count"
+					}
+				>
+					{playerCount}/{MAX_PLAYERS}
+				</span>
 			</div>
 
 			<div className="current-player">
@@ -67,10 +94,33 @@ function PlayerList({
 									{roomPlayer.name}
 								</span>
 
+								{roomPlayer.isBot && (
+									<span className="bot-badge">
+										BOT
+									</span>
+								)}
+
 								{roomPlayer.isHost && (
 									<span className="host-badge">
 										HOST
 									</span>
+								)}
+
+								{isHost &&
+								roomPlayer.isBot &&
+								!roomState.started && (
+									<button
+										type="button"
+										className="remove-bot-button"
+										onClick={() =>
+											onRemoveBot(
+												roomPlayer.playerId
+											)
+										}
+										title="Remove bot"
+									>
+										×
+									</button>
 								)}
 							</li>
 						)
@@ -80,6 +130,31 @@ function PlayerList({
 				<p className="muted">
 					Loading players...
 				</p>
+			)}
+
+			{roomIsFull &&
+			!roomState?.started && (
+				<div className="room-full-message">
+					ROOM FULL
+				</div>
+			)}
+
+			{isHost &&
+			!roomState?.started && (
+				<button
+					type="button"
+					className="add-bot-button"
+					onClick={
+						onAddBot
+					}
+					disabled={
+						roomIsFull
+					}
+				>
+					{roomIsFull
+						? "MAX PLAYERS"
+						: "+ ADD BOT"}
+				</button>
 			)}
 
 			{hasMultiplePlayers && (
@@ -134,17 +209,17 @@ function PlayerList({
 			)}
 
 			{isHost &&
-				!roomState?.started && (
-					<button
-						type="button"
-						className="start-button"
-						onClick={
-							onStart
-						}
-					>
-						START GAME
-					</button>
-				)}
+			!roomState?.started && (
+				<button
+					type="button"
+					className="start-button"
+					onClick={
+						onStart
+					}
+				>
+					START GAME
+				</button>
+			)}
 		</aside>
 	);
 }

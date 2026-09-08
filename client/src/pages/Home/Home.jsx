@@ -260,7 +260,7 @@ function Home() {
 									);
 								}
 							}
-							placeholder="Eric"
+							placeholder="username"
 							maxLength={
 								USERNAME_MAX_LENGTH
 							}
@@ -289,7 +289,7 @@ function Home() {
 									);
 								}
 							}
-							placeholder="test"
+							placeholder="room Id"
 							maxLength={
 								ROOM_MAX_LENGTH
 							}

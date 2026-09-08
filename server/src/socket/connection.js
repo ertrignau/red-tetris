@@ -2,6 +2,9 @@ import {
 	createDisconnectTimers
 } from "../services/disconnectTimers.js";
 
+import BotRunner
+	from "../bots/botRunner.js";
+
 import {
 	registerRoomHandlers
 } from "./roomHandlers.js";
@@ -30,12 +33,21 @@ import {
 	registerDisconnectHandlers
 } from "./disconnectHandlers.js";
 
+import {
+	registerBotHandlers
+} from "./botHandlers.js";
+
 export function registerSocketHandlers({
 	io,
 	gameManager
 }) {
 	const disconnectTimers =
 		createDisconnectTimers();
+
+	const botRunner =
+		new BotRunner({
+			io
+		});
 
 	io.on(
 		"connection",
@@ -61,7 +73,8 @@ export function registerSocketHandlers({
 			registerGameHandlers({
 				io,
 				socket,
-				gameManager
+				gameManager,
+				botRunner
 			});
 
 			registerPieceHandlers({
@@ -72,10 +85,17 @@ export function registerSocketHandlers({
 			registerPenaltyHandlers({
 				io,
 				socket,
-				gameManager
+				gameManager,
+				botRunner
 			});
 
 			registerSpectrumHandlers({
+				socket,
+				gameManager
+			});
+
+			registerBotHandlers({
+				io,
 				socket,
 				gameManager
 			});

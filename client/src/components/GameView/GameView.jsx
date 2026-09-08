@@ -38,7 +38,9 @@ function GameView({
 
 		handleStart,
 		handleModeChange,
-		handleRestart
+		handleRestart,
+		handleAddBot,
+		handleRemoveBot
 	} = game;
 
 	return (
@@ -100,6 +102,14 @@ function GameView({
 
 					onModeChange={
 						handleModeChange
+					}
+
+					onAddBot={
+						handleAddBot
+					}
+
+					onRemoveBot={
+						handleRemoveBot
 					}
 
 					showBoard={

@@ -1,5 +1,9 @@
 import Game from "../classes/Game.js";
 
+import {
+	MAX_PLAYERS
+} from "../../../shared/constants.js";
+
 class GameManager {
 	constructor() {
 		this.games =
@@ -81,7 +85,9 @@ class GameManager {
 			of this.games.values()
 		) {
 			if (
-				!game.started
+				!game.started &&
+				game.getPlayers().length <
+					MAX_PLAYERS
 			) {
 				return game;
 			}

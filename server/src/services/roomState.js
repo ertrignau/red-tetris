@@ -41,7 +41,12 @@ export function buildRoomState(
 					isHost:
 						player.id ===
 						game.hostId,
-
+					
+					isBot:
+						Boolean(
+							player.isBot
+						),
+					
 					alive:
 						player.alive,
 

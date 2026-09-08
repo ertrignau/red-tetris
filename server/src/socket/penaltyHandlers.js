@@ -1,7 +1,8 @@
 export function registerPenaltyHandlers({
 	io,
 	socket,
-	gameManager
+	gameManager,
+	botRunner
 }) {
 	socket.on(
 		"penalty:send",
@@ -38,9 +39,11 @@ export function registerPenaltyHandlers({
 					0,
 					Math.min(
 						3,
-						Number(
-							count
-						) || 0
+						Math.floor(
+							Number(
+								count
+							) || 0
+						)
 					)
 				);
 
@@ -63,18 +66,35 @@ export function registerPenaltyHandlers({
 					continue;
 				}
 
-				io.to(
-					target.socketId
-				).emit(
-					"penalty:add",
-					{
-						count:
-							penaltyCount,
+				if (
+					target.isBot
+				) {
+					botRunner.applyPenalty(
+						game,
+						target,
+						penaltyCount,
+						attacker.name
+					);
 
-						from:
-							attacker.name
-					}
-				);
+					continue;
+				}
+
+				if (
+					target.socketId
+				) {
+					io.to(
+						target.socketId
+					).emit(
+						"penalty:add",
+						{
+							count:
+								penaltyCount,
+
+							from:
+								attacker.name
+						}
+					);
+				}
 			}
 
 			console.log(

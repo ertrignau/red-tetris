@@ -52,10 +52,6 @@ function useGameActions({
 					return;
 				}
 
-				/*
-				 * Clean local state before
-				 * starting a new server round.
-				 */
 				resetClient();
 
 				socket.emit(
@@ -73,9 +69,60 @@ function useGameActions({
 			]
 		);
 
+	const handleAddBot =
+		useCallback(
+			() => {
+				if (
+					!isHost ||
+					roomState?.started
+				) {
+					return;
+				}
+
+				socket.emit(
+					"bot:add",
+					{
+						room
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started
+			]
+		);
+
+	const handleRemoveBot =
+		useCallback(
+			(botId) => {
+				if (
+					!isHost ||
+					roomState?.started
+				) {
+					return;
+				}
+
+				socket.emit(
+					"bot:remove",
+					{
+						room,
+						botId
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started
+			]
+		);
+
 	return {
 		handleModeChange,
-		handleStart
+		handleStart,
+		handleAddBot,
+		handleRemoveBot
 	};
 }
 
