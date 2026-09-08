@@ -10,8 +10,12 @@ client/src/app/App.jsx
 client/src/app/router.jsx
 client/src/components/Board/Board.jsx
 client/src/components/Cell/Cell.jsx
+client/src/components/GameHeader/GameHeader.jsx
+client/src/components/GameLayout/GameLayout.jsx
 client/src/components/GamePanel/GamePanel.jsx
+client/src/components/GameSidePanel/GameSidePanel.jsx
 client/src/components/GameStatus/GameStatus.jsx
+client/src/components/GameView/GameView.jsx
 client/src/components/Opponent/Opponent.jsx
 client/src/components/PiecePreview/PiecePreview.jsx
 client/src/components/PlayerList/PlayerList.jsx
@@ -26,7 +30,15 @@ client/src/game/pieces.js
 client/src/game/rotation.js
 client/src/game/scoring.js
 client/src/game/spectrum.js
-client/src/hooks/useGameLoop.js
+client/src/hooks/game/useCountdown.js
+client/src/hooks/game/useGameActions.js
+client/src/hooks/game/useGameController.js
+client/src/hooks/game/useGameLoop.js
+client/src/hooks/game/useGameRestart.js
+client/src/hooks/game/useGameSession.js
+client/src/hooks/game/useGameState.js
+client/src/hooks/game/usePenaltyReceiver.js
+client/src/hooks/game/useRanking.js
 client/src/hooks/useKeyboard.js
 client/src/hooks/useMultiplayer.js
 client/src/hooks/useSocket.js
@@ -341,6 +353,134 @@ function Cell({ value }) {
 export default Cell;
 ```
 
+## `client/src/components/GameHeader/GameHeader.jsx`
+
+```jsx
+function GameHeader({
+	room
+}) {
+	return (
+		<header className="game-header">
+			<h1 className="game-title">
+				<span>
+					RED
+				</span>{" "}
+				TETRIS
+			</h1>
+
+			<div className="room-badge">
+				ROOM //{" "}
+				{room.toUpperCase()}
+			</div>
+		</header>
+	);
+}
+
+export default GameHeader;
+```
+
+## `client/src/components/GameLayout/GameLayout.jsx`
+
+```jsx
+import PlayerList from "../PlayerList/PlayerList.jsx";
+import GameStatus from "../GameStatus/GameStatus.jsx";
+import GameSidePanel from "../GameSidePanel/GameSidePanel.jsx";
+
+function GameLayout({
+	roomState,
+
+	player,
+	playerId,
+	error,
+
+	isHost,
+
+	onStart,
+	onModeChange,
+
+	showBoard,
+	isFinishing,
+
+	board,
+	currentPiece,
+	gameOver,
+	score,
+	countdown,
+
+	nextPiece,
+	opponents
+}) {
+	return (
+		<div className="game-layout">
+			<PlayerList
+				roomState={
+					roomState
+				}
+				player={
+					player
+				}
+				playerId={
+					playerId
+				}
+				error={
+					error
+				}
+				isHost={
+					isHost
+				}
+				onStart={
+					onStart
+				}
+				mode={
+					roomState?.mode
+				}
+				onModeChange={
+					onModeChange
+				}
+			/>
+
+			<GameStatus
+				started={
+					showBoard
+				}
+				finishing={
+					isFinishing
+				}
+				board={
+					board
+				}
+				currentPiece={
+					currentPiece
+				}
+				gameOver={
+					gameOver
+				}
+				score={
+					score
+				}
+				countdown={
+					countdown
+				}
+			/>
+
+			<GameSidePanel
+				score={
+					score
+				}
+				nextPiece={
+					nextPiece
+				}
+				opponents={
+					opponents
+				}
+			/>
+		</div>
+	);
+}
+
+export default GameLayout;
+```
+
 ## `client/src/components/GamePanel/GamePanel.jsx`
 
 ```jsx
@@ -447,6 +587,55 @@ function GamePanel({
 export default GamePanel;
 ```
 
+## `client/src/components/GameSidePanel/GameSidePanel.jsx`
+
+```jsx
+import GamePanel from "../GamePanel/GamePanel.jsx";
+import Opponent from "../Opponent/Opponent.jsx";
+
+function GameSidePanel({
+	score,
+	nextPiece,
+	opponents
+}) {
+	return (
+		<div className="game-side-column">
+			<GamePanel
+				score={
+					score
+				}
+				nextPiece={
+					nextPiece
+				}
+			/>
+
+			{opponents.length >
+				0 && (
+				<div className="opponents-list">
+					{opponents.map(
+						(opponent) => (
+							<Opponent
+								key={
+									opponent.id
+								}
+								name={
+									opponent.name
+								}
+								spectrum={
+									opponent.spectrum
+								}
+							/>
+						)
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export default GameSidePanel;
+```
+
 ## `client/src/components/GameStatus/GameStatus.jsx`
 
 ```jsx
@@ -535,6 +724,161 @@ function GameStatus({
 }
 
 export default GameStatus;
+```
+
+## `client/src/components/GameView/GameView.jsx`
+
+```jsx
+import GameHeader
+	from "../GameHeader/GameHeader.jsx";
+
+import GameLayout
+	from "../GameLayout/GameLayout.jsx";
+
+import Ranking
+	from "../../pages/Ranking/Ranking.jsx";
+
+function GameView({
+	room,
+	player,
+	game
+}) {
+	const {
+		playerId,
+		roomState,
+		error,
+		isHost,
+
+		board,
+		score,
+		gameOver,
+
+		currentPiece,
+		nextPiece,
+
+		countdown,
+		showBoard,
+
+		opponents,
+
+		showRanking,
+		isFading,
+		isFinishing,
+		ranking,
+		finishedMode,
+
+		handleStart,
+		handleModeChange,
+		handleRestart
+	} = game;
+
+	return (
+		<main className="game-page">
+			<GameHeader
+				room={
+					room
+				}
+			/>
+
+			{showRanking &&
+			finishedMode !== "solo" ? (
+				<Ranking
+					players={
+						ranking
+					}
+
+					currentPlayerId={
+						playerId
+					}
+
+					isHost={
+						isHost
+					}
+
+					onRestart={
+						handleRestart
+					}
+
+					mode={
+						finishedMode
+					}
+				/>
+			) : (
+				<GameLayout
+					roomState={
+						roomState
+					}
+
+					player={
+						player
+					}
+
+					playerId={
+						playerId
+					}
+
+					error={
+						error
+					}
+
+					isHost={
+						isHost
+					}
+
+					onStart={
+						handleStart
+					}
+
+					onModeChange={
+						handleModeChange
+					}
+
+					showBoard={
+						showBoard
+					}
+
+					isFinishing={
+						isFinishing
+					}
+
+					board={
+						board
+					}
+
+					currentPiece={
+						currentPiece
+					}
+
+					gameOver={
+						gameOver
+					}
+
+					score={
+						score
+					}
+
+					countdown={
+						countdown
+					}
+
+					nextPiece={
+						nextPiece
+					}
+
+					opponents={
+						opponents
+					}
+				/>
+			)}
+
+			{isFading && (
+				<div className="ranking-fade-overlay" />
+			)}
+		</main>
+	);
+}
+
+export default GameView;
 ```
 
 ## `client/src/components/Opponent/Opponent.jsx`
@@ -1183,7 +1527,587 @@ export function calculateSpectrum(board) {
 }
 ```
 
-## `client/src/hooks/useGameLoop.js`
+## `client/src/hooks/game/useCountdown.js`
+
+```javascript
+import {
+	useCallback,
+	useEffect,
+	useState
+} from "react";
+
+function useCountdown(
+	roomState
+) {
+	const [
+		countdown,
+		setCountdown
+	] = useState(null);
+
+	const [
+		gamePlayable,
+		setGamePlayable
+	] = useState(false);
+
+	const resetCountdown =
+		useCallback(
+			() => {
+				setCountdown(
+					null
+				);
+
+				setGamePlayable(
+					false
+				);
+			},
+			[]
+		);
+
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!roomState?.countdownEndsAt
+		) {
+			resetCountdown();
+
+			return;
+		}
+
+		let goTimeout =
+			null;
+
+		const updateCountdown =
+			() => {
+				const remaining =
+					roomState.countdownEndsAt -
+					Date.now();
+
+				if (
+					remaining <= 0
+				) {
+					setCountdown(
+						"GO"
+					);
+
+					setGamePlayable(
+						true
+					);
+
+					goTimeout =
+						setTimeout(
+							() => {
+								setCountdown(
+									null
+								);
+							},
+							500
+						);
+
+					return true;
+				}
+
+				setCountdown(
+					Math.ceil(
+						remaining /
+							1000
+					)
+				);
+
+				setGamePlayable(
+					false
+				);
+
+				return false;
+			};
+
+		const finished =
+			updateCountdown();
+
+		if (finished) {
+			return () => {
+				if (
+					goTimeout
+				) {
+					clearTimeout(
+						goTimeout
+					);
+				}
+			};
+		}
+
+		const interval =
+			setInterval(
+				() => {
+					if (
+						updateCountdown()
+					) {
+						clearInterval(
+							interval
+						);
+					}
+				},
+				100
+			);
+
+		return () => {
+			clearInterval(
+				interval
+			);
+
+			if (
+				goTimeout
+			) {
+				clearTimeout(
+					goTimeout
+				);
+			}
+		};
+	}, [
+		roomState?.started,
+		roomState?.countdownEndsAt,
+		resetCountdown
+	]);
+
+	return {
+		countdown,
+		gamePlayable,
+		setGamePlayable,
+		resetCountdown
+	};
+}
+
+export default useCountdown;
+```
+
+## `client/src/hooks/game/useGameActions.js`
+
+```javascript
+import {
+	useCallback
+} from "react";
+
+import socket from "../../socket/socket.js";
+
+function useGameActions({
+	room,
+	roomState,
+	isHost,
+	resetClient
+}) {
+	const handleModeChange =
+		useCallback(
+			(mode) => {
+				if (
+					!isHost ||
+					roomState?.started ||
+					(
+						roomState
+							?.players
+							?.length ??
+						0
+					) <= 1
+				) {
+					return;
+				}
+
+				socket.emit(
+					"game:mode",
+					{
+						room,
+						mode
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started,
+				roomState?.players
+			]
+		);
+
+	const handleStart =
+		useCallback(
+			() => {
+				if (
+					!isHost ||
+					roomState?.started
+				) {
+					return;
+				}
+
+				/*
+				 * Clean local state before
+				 * starting a new server round.
+				 */
+				resetClient();
+
+				socket.emit(
+					"game:start",
+					{
+						room
+					}
+				);
+			},
+			[
+				room,
+				isHost,
+				roomState?.started,
+				resetClient
+			]
+		);
+
+	return {
+		handleModeChange,
+		handleStart
+	};
+}
+
+export default useGameActions;
+```
+
+## `client/src/hooks/game/useGameController.js`
+
+```javascript
+import {
+	useCallback
+} from "react";
+
+import useSocket
+	from "../useSocket.js";
+
+import useKeyboard
+	from "../useKeyboard.js";
+
+import useGameLoop
+	from "../useGameLoop.js";
+
+import useMultiplayer
+	from "../useMultiplayer.js";
+
+import useGameState
+	from "./useGameState.js";
+
+import useCountdown
+	from "./useCountdown.js";
+
+import useGameSession
+	from "./useGameSession.js";
+
+import useRanking
+	from "./useRanking.js";
+
+import usePenaltyReceiver
+	from "./usePenaltyReceiver.js";
+
+import useGameRestart
+	from "./useGameRestart.js";
+
+import useGameActions
+	from "./useGameActions.js";
+
+function useGameController(
+	room,
+	player
+) {
+	/*
+	 * =================================
+	 * SOCKET
+	 * =================================
+	 */
+	const {
+		playerId,
+		roomState,
+		error,
+
+		currentPiece,
+		setCurrentPiece,
+
+		nextPiece,
+		setNextPiece
+	} = useSocket(
+		room,
+		player
+	);
+
+	/*
+	 * =================================
+	 * LOCAL GAME STATE
+	 * =================================
+	 */
+	const {
+		board,
+		setBoard,
+
+		score,
+		setScore,
+
+		gameOver,
+		setGameOver,
+
+		resetGameState
+	} = useGameState();
+
+	/*
+	 * =================================
+	 * COUNTDOWN
+	 * =================================
+	 */
+	const {
+		countdown,
+		gamePlayable,
+		setGamePlayable,
+		resetCountdown
+	} = useCountdown(
+		roomState
+	);
+
+	/*
+	 * =================================
+	 * SESSION / REFRESH
+	 * =================================
+	 */
+	const {
+		resetSession
+	} = useGameSession({
+		room,
+		playerId,
+		roomState,
+
+		board,
+		setBoard,
+
+		score,
+		setScore,
+
+		gameOver,
+		setGameOver,
+
+		currentPiece,
+		setCurrentPiece,
+
+		nextPiece,
+		setNextPiece
+	});
+
+	/*
+	 * =================================
+	 * GAME FINISH CALLBACK
+	 * =================================
+	 */
+	const handleGameFinished =
+		useCallback(
+			() => {
+				setGamePlayable(
+					false
+				);
+
+				resetSession();
+			},
+			[
+				setGamePlayable,
+				resetSession
+			]
+		);
+
+	/*
+	 * =================================
+	 * RANKING
+	 * =================================
+	 */
+	const {
+		showRanking,
+		isFading,
+		isFinishing,
+		ranking,
+		finishedMode,
+		resetRanking
+	} = useRanking({
+		onGameFinished:
+			handleGameFinished
+	});
+
+	/*
+	 * =================================
+	 * GAME LOOP
+	 * =================================
+	 */
+	const {
+		hardDropCurrentPiece,
+		applyPenalty
+	} = useGameLoop({
+		room,
+
+		started:
+			gamePlayable,
+
+		board,
+		setBoard,
+
+		currentPiece,
+		setCurrentPiece,
+
+		gameOver,
+		setGameOver,
+
+		setScore
+	});
+
+	/*
+	 * =================================
+	 * KEYBOARD
+	 * =================================
+	 */
+	useKeyboard({
+		started:
+			gamePlayable,
+
+		gameOver,
+
+		board,
+
+		currentPiece,
+		setCurrentPiece,
+
+		onHardDrop:
+			hardDropCurrentPiece
+	});
+
+	/*
+	 * =================================
+	 * PENALTIES
+	 * =================================
+	 */
+	usePenaltyReceiver(
+		applyPenalty
+	);
+
+	/*
+	 * =================================
+	 * MULTIPLAYER
+	 * =================================
+	 */
+	const {
+		opponents
+	} = useMultiplayer({
+		room,
+
+		started:
+			gamePlayable,
+
+		board,
+
+		roomState,
+
+		playerId
+	});
+
+	/*
+	 * =================================
+	 * HOST
+	 * =================================
+	 */
+	const isHost =
+		roomState?.hostId ===
+		playerId;
+
+	/*
+	 * =================================
+	 * RESTART / CLIENT RESET
+	 * =================================
+	 */
+	const {
+		handleRestart,
+		resetClient
+	} = useGameRestart({
+		room,
+		isHost,
+
+		resetGameState,
+		resetRanking,
+		resetCountdown,
+		resetSession,
+
+		setCurrentPiece,
+		setNextPiece
+	});
+
+	/*
+	 * =================================
+	 * START / MODE ACTIONS
+	 * =================================
+	 */
+	const {
+		handleModeChange,
+		handleStart
+	} = useGameActions({
+		room,
+		roomState,
+		isHost,
+		resetClient
+	});
+
+	/*
+	 * Keep the final board visible
+	 * while the ranking transition
+	 * runs or after solo game over.
+	 */
+	const showBoard =
+		Boolean(
+			roomState?.started ||
+			isFinishing ||
+			gameOver
+		);
+
+	return {
+		/*
+		 * Player / room
+		 */
+		playerId,
+		roomState,
+		error,
+		isHost,
+
+		/*
+		 * Gameplay
+		 */
+		board,
+		score,
+		gameOver,
+
+		currentPiece,
+		nextPiece,
+
+		countdown,
+		showBoard,
+
+		/*
+		 * Multiplayer
+		 */
+		opponents,
+
+		/*
+		 * Ranking
+		 */
+		showRanking,
+		isFading,
+		isFinishing,
+		ranking,
+		finishedMode,
+
+		/*
+		 * Actions
+		 */
+		handleStart,
+		handleModeChange,
+		handleRestart
+	};
+}
+
+export default useGameController;
+```
+
+## `client/src/hooks/game/useGameLoop.js`
 
 ```javascript
 import {
@@ -1626,6 +2550,706 @@ function useGameLoop({
 }
 
 export default useGameLoop;
+```
+
+## `client/src/hooks/game/useGameRestart.js`
+
+```javascript
+import {
+	useCallback,
+	useEffect
+} from "react";
+
+import socket from "../../socket/socket.js";
+
+function useGameRestart({
+	room,
+	isHost,
+
+	resetGameState,
+	resetRanking,
+	resetCountdown,
+	resetSession,
+
+	setCurrentPiece,
+	setNextPiece
+}) {
+	const resetClient =
+		useCallback(
+			() => {
+				resetGameState();
+
+				resetRanking();
+
+				resetCountdown();
+
+				resetSession();
+
+				setCurrentPiece(
+					null
+				);
+
+				setNextPiece(
+					null
+				);
+			},
+			[
+				resetGameState,
+				resetRanking,
+				resetCountdown,
+				resetSession,
+				setCurrentPiece,
+				setNextPiece
+			]
+		);
+
+	const handleRestart =
+		useCallback(
+			() => {
+				if (!isHost)
+					return;
+
+				socket.emit(
+					"game:restart",
+					{
+						room
+					}
+				);
+			},
+			[
+				isHost,
+				room
+			]
+		);
+
+	useEffect(() => {
+		const onGameRestart =
+			() => {
+				resetClient();
+			};
+
+		socket.on(
+			"game:restart",
+			onGameRestart
+		);
+
+		return () => {
+			socket.off(
+				"game:restart",
+				onGameRestart
+			);
+		};
+	}, [
+		resetClient
+	]);
+
+	return {
+		handleRestart,
+		resetClient
+	};
+}
+
+export default useGameRestart;
+```
+
+## `client/src/hooks/game/useGameSession.js`
+
+```javascript
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState
+} from "react";
+
+import socket from "../../socket/socket.js";
+
+import {
+	createBoard
+} from "../../game/board.js";
+
+import {
+	clearGameSession,
+	loadGameSession,
+	saveGameSession
+} from "../../utils/gameSession.js";
+
+function useGameSession({
+	room,
+	playerId,
+	roomState,
+
+	board,
+	setBoard,
+
+	score,
+	setScore,
+
+	gameOver,
+	setGameOver,
+
+	currentPiece,
+	setCurrentPiece,
+
+	nextPiece,
+	setNextPiece
+}) {
+	const [
+		sessionReady,
+		setSessionReady
+	] = useState(false);
+
+	const initializedRoundRef =
+		useRef(null);
+
+	const resetSession =
+		useCallback(
+			() => {
+				setSessionReady(
+					false
+				);
+
+				initializedRoundRef.current =
+					null;
+
+				clearGameSession(
+					room,
+					playerId
+				);
+			},
+			[
+				room,
+				playerId
+			]
+		);
+
+	/*
+	 * Restore an existing round or
+	 * initialize a new one.
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			roomState?.roundId ===
+				undefined ||
+			roomState?.roundId ===
+				null
+		) {
+			initializedRoundRef.current =
+				null;
+
+			setSessionReady(
+				false
+			);
+
+			return;
+		}
+
+		const roundId =
+			roomState.roundId;
+
+		/*
+		 * Prevent StrictMode from
+		 * initializing twice.
+		 */
+		if (
+			initializedRoundRef.current ===
+			roundId
+		) {
+			return;
+		}
+
+		initializedRoundRef.current =
+			roundId;
+
+		const savedSession =
+			loadGameSession(
+				room,
+				playerId
+			);
+
+		/*
+		 * Refresh / reconnect.
+		 */
+		if (
+			savedSession &&
+			savedSession.roundId ===
+				roundId
+		) {
+			console.log(
+				"Restoring game session:",
+				roundId
+			);
+
+			setBoard(
+				savedSession.board ??
+					createBoard()
+			);
+
+			setScore(
+				savedSession.score ??
+					0
+			);
+
+			setGameOver(
+				Boolean(
+					savedSession.gameOver
+				)
+			);
+
+			setCurrentPiece(
+				savedSession.currentPiece ??
+					null
+			);
+
+			setNextPiece(
+				savedSession.nextPiece ??
+					null
+			);
+
+			setSessionReady(
+				true
+			);
+
+			return;
+		}
+
+		/*
+		 * New round.
+		 */
+		console.log(
+			"Initializing new round:",
+			roundId
+		);
+
+		setBoard(
+			createBoard()
+		);
+
+		setScore(
+			0
+		);
+
+		setGameOver(
+			false
+		);
+
+		setCurrentPiece(
+			null
+		);
+
+		setNextPiece(
+			null
+		);
+
+		clearGameSession(
+			room,
+			playerId
+		);
+
+		setSessionReady(
+			true
+		);
+
+		socket.emit(
+			"piece:next",
+			{
+				room
+			}
+		);
+	}, [
+		room,
+		playerId,
+		roomState?.started,
+		roomState?.roundId,
+		setBoard,
+		setScore,
+		setGameOver,
+		setCurrentPiece,
+		setNextPiece
+	]);
+
+	/*
+	 * Save the current round for
+	 * refresh/reconnect.
+	 */
+	useEffect(() => {
+		if (
+			!roomState?.started ||
+			!sessionReady ||
+			roomState?.roundId ===
+				undefined ||
+			roomState?.roundId ===
+				null
+		) {
+			return;
+		}
+
+		/*
+		 * Do not overwrite the snapshot
+		 * with the brief empty state
+		 * before the first piece arrives.
+		 */
+		if (
+			!currentPiece &&
+			!gameOver
+		) {
+			return;
+		}
+
+		saveGameSession(
+			room,
+			playerId,
+			{
+				roundId:
+					roomState.roundId,
+
+				board,
+
+				score,
+
+				currentPiece,
+
+				nextPiece,
+
+				gameOver
+			}
+		);
+	}, [
+		room,
+		playerId,
+		roomState?.started,
+		roomState?.roundId,
+		sessionReady,
+		board,
+		score,
+		currentPiece,
+		nextPiece,
+		gameOver
+	]);
+
+	return {
+		sessionReady,
+		resetSession
+	};
+}
+
+export default useGameSession;
+```
+
+## `client/src/hooks/game/useGameState.js`
+
+```javascript
+import {
+	useCallback,
+	useState
+} from "react";
+
+import {
+	createBoard
+} from "../../game/board.js";
+
+function useGameState() {
+	const [
+		board,
+		setBoard
+	] = useState(
+		() => createBoard()
+	);
+
+	const [
+		score,
+		setScore
+	] = useState(0);
+
+	const [
+		gameOver,
+		setGameOver
+	] = useState(false);
+
+	const resetGameState =
+		useCallback(
+			() => {
+				setBoard(
+					createBoard()
+				);
+
+				setScore(
+					0
+				);
+
+				setGameOver(
+					false
+				);
+			},
+			[]
+		);
+
+	return {
+		board,
+		setBoard,
+
+		score,
+		setScore,
+
+		gameOver,
+		setGameOver,
+
+		resetGameState
+	};
+}
+
+export default useGameState;
+```
+
+## `client/src/hooks/game/usePenaltyReceiver.js`
+
+```javascript
+import {
+	useEffect
+} from "react";
+
+import socket from "../../socket/socket.js";
+
+function usePenaltyReceiver(
+	applyPenalty
+) {
+	useEffect(() => {
+		const onPenaltyAdd =
+			({
+				count,
+				from
+			}) => {
+				console.log(
+					`Penalty received from ${from}:`,
+					count
+				);
+
+				applyPenalty(
+					count
+				);
+			};
+
+		socket.on(
+			"penalty:add",
+			onPenaltyAdd
+		);
+
+		return () => {
+			socket.off(
+				"penalty:add",
+				onPenaltyAdd
+			);
+		};
+	}, [
+		applyPenalty
+	]);
+}
+
+export default usePenaltyReceiver;
+```
+
+## `client/src/hooks/game/useRanking.js`
+
+```javascript
+import {
+	useCallback,
+	useEffect,
+	useState
+} from "react";
+
+import socket from "../../socket/socket.js";
+
+function useRanking({
+	onGameFinished
+}) {
+	const [
+		showRanking,
+		setShowRanking
+	] = useState(false);
+
+	const [
+		isFading,
+		setIsFading
+	] = useState(false);
+
+	const [
+		isFinishing,
+		setIsFinishing
+	] = useState(false);
+
+	const [
+		ranking,
+		setRanking
+	] = useState([]);
+
+	const [
+		finishedMode,
+		setFinishedMode
+	] = useState(null);
+
+	const resetRanking =
+		useCallback(
+			() => {
+				setShowRanking(
+					false
+				);
+
+				setIsFading(
+					false
+				);
+
+				setIsFinishing(
+					false
+				);
+
+				setRanking(
+					[]
+				);
+
+				setFinishedMode(
+					null
+				);
+			},
+			[]
+		);
+
+	useEffect(() => {
+		let fadeTimeout =
+			null;
+
+		let rankingTimeout =
+			null;
+
+		const handleGameFinished =
+			(data) => {
+				console.log(
+					"FINAL RANKING:",
+					data.ranking
+				);
+
+				console.log(
+					"FINISHED MODE:",
+					data.mode
+				);
+
+				setRanking(
+					data.ranking ??
+						[]
+				);
+
+				setFinishedMode(
+					data.mode ??
+						null
+				);
+
+				if (
+					onGameFinished
+				) {
+					onGameFinished(
+						data
+					);
+				}
+
+				/*
+				 * Solo keeps the final
+				 * board visible and does
+				 * not display ranking.
+				 */
+				if (
+					data.mode ===
+					"solo"
+				) {
+					setIsFinishing(
+						false
+					);
+
+					setIsFading(
+						false
+					);
+
+					setShowRanking(
+						false
+					);
+
+					return;
+				}
+
+				setIsFinishing(
+					true
+				);
+
+				fadeTimeout =
+					setTimeout(
+						() => {
+							setIsFading(
+								true
+							);
+						},
+						2500
+					);
+
+				rankingTimeout =
+					setTimeout(
+						() => {
+							setShowRanking(
+								true
+							);
+
+							setIsFading(
+								false
+							);
+
+							setIsFinishing(
+								false
+							);
+						},
+						3000
+					);
+			};
+
+		socket.on(
+			"game:finished",
+			handleGameFinished
+		);
+
+		return () => {
+			socket.off(
+				"game:finished",
+				handleGameFinished
+			);
+
+			if (
+				fadeTimeout
+			) {
+				clearTimeout(
+					fadeTimeout
+				);
+			}
+
+			if (
+				rankingTimeout
+			) {
+				clearTimeout(
+					rankingTimeout
+				);
+			}
+		};
+	}, [
+		onGameFinished
+	]);
+
+	return {
+		showRanking,
+		isFading,
+		isFinishing,
+		ranking,
+		finishedMode,
+		resetRanking
+	};
+}
+
+export default useRanking;
 ```
 
 ## `client/src/hooks/useKeyboard.js`
@@ -2214,38 +3838,14 @@ ReactDOM.createRoot(
 
 ```jsx
 import {
-	useEffect,
-	useRef,
-	useState
-} from "react";
-
-import {
 	useParams
 } from "react-router-dom";
 
-import socket from "../../socket/socket.js";
+import useGameController
+	from "../../hooks/game/useGameController.js";
 
-import {
-	createBoard
-} from "../../game/board.js";
-
-import {
-	clearGameSession,
-	loadGameSession,
-	saveGameSession
-} from "../../utils/gameSession.js";
-
-import useSocket from "../../hooks/useSocket.js";
-import useKeyboard from "../../hooks/useKeyboard.js";
-import useGameLoop from "../../hooks/useGameLoop.js";
-import useMultiplayer from "../../hooks/useMultiplayer.js";
-
-import PlayerList from "../../components/PlayerList/PlayerList.jsx";
-import GameStatus from "../../components/GameStatus/GameStatus.jsx";
-import GamePanel from "../../components/GamePanel/GamePanel.jsx";
-import Opponent from "../../components/Opponent/Opponent.jsx";
-
-import Ranking from "../Ranking/Ranking.jsx";
+import GameView
+	from "../../components/GameView/GameView.jsx";
 
 function Game() {
 	const {
@@ -2253,1030 +3853,26 @@ function Game() {
 		player
 	} = useParams();
 
-	const [
-		board,
-		setBoard
-	] = useState(
-		() => createBoard()
-	);
-
-	const [
-		score,
-		setScore
-	] = useState(0);
-
-	const [
-		gameOver,
-		setGameOver
-	] = useState(false);
-
-	const [
-		showRanking,
-		setShowRanking
-	] = useState(false);
-
-	const [
-		isFading,
-		setIsFading
-	] = useState(false);
-
-	const [
-		isFinishing,
-		setIsFinishing
-	] = useState(false);
-
-	const [
-		ranking,
-		setRanking
-	] = useState([]);
-
-	const [
-		finishedMode,
-		setFinishedMode
-	] = useState(null);
-
-	const [
-		countdown,
-		setCountdown
-	] = useState(null);
-
-	const [
-		gamePlayable,
-		setGamePlayable
-	] = useState(false);
-
-	const [
-		sessionReady,
-		setSessionReady
-	] = useState(false);
-
-	/*
-	 * Prevent the same server round
-	 * from being initialized twice.
-	 */
-	const initializedRoundRef =
-		useRef(null);
-
-	const {
-		playerId,
-		roomState,
-		error,
-		currentPiece,
-		setCurrentPiece,
-		nextPiece,
-		setNextPiece
-	} = useSocket(
-		room,
-		player
-	);
-
-	/*
-	 * =================================
-	 * ROUND INITIALIZATION / REFRESH
-	 * =================================
-	 *
-	 * If the server roundId matches
-	 * our sessionStorage snapshot,
-	 * restore the current game.
-	 *
-	 * Otherwise this is a new round.
-	 */
-	useEffect(() => {
-		if (
-			!roomState?.started ||
-			roomState?.roundId ===
-				undefined ||
-			roomState?.roundId ===
-				null
-		) {
-			initializedRoundRef.current =
-				null;
-
-			setSessionReady(
-				false
-			);
-
-			return;
-		}
-
-		const roundId =
-			roomState.roundId;
-
-		/*
-		 * Important with React
-		 * StrictMode.
-		 */
-		if (
-			initializedRoundRef.current ===
-			roundId
-		) {
-			return;
-		}
-
-		initializedRoundRef.current =
-			roundId;
-
-		const savedSession =
-			loadGameSession(
-				room,
-				playerId
-			);
-
-		/*
-		 * REFRESH / RECONNECT
-		 */
-		if (
-			savedSession &&
-			savedSession.roundId ===
-				roundId
-		) {
-			console.log(
-				"Restoring game session:",
-				roundId
-			);
-
-			setBoard(
-				savedSession.board ??
-					createBoard()
-			);
-
-			setScore(
-				savedSession.score ??
-					0
-			);
-
-			setGameOver(
-				Boolean(
-					savedSession.gameOver
-				)
-			);
-
-			setCurrentPiece(
-				savedSession.currentPiece ??
-					null
-			);
-
-			setNextPiece(
-				savedSession.nextPiece ??
-					null
-			);
-
-			setSessionReady(
-				true
-			);
-
-			return;
-		}
-
-		/*
-		 * NEW ROUND
-		 */
-		console.log(
-			"Initializing new round:",
-			roundId
-		);
-
-		setBoard(
-			createBoard()
-		);
-
-		setScore(
-			0
-		);
-
-		setGameOver(
-			false
-		);
-
-		setCurrentPiece(
-			null
-		);
-
-		setNextPiece(
-			null
-		);
-
-		clearGameSession(
+	const game =
+		useGameController(
 			room,
-			playerId
-		);
-
-		setSessionReady(
-			true
-		);
-
-		/*
-		 * Only request the first
-		 * piece for a genuinely
-		 * new round.
-		 */
-		socket.emit(
-			"piece:next",
-			{
-				room
-			}
-		);
-	}, [
-		room,
-		playerId,
-		roomState?.started,
-		roomState?.roundId,
-		setCurrentPiece,
-		setNextPiece
-	]);
-
-	/*
-	 * =================================
-	 * SAVE ROUND STATE
-	 * =================================
-	 */
-	useEffect(() => {
-		if (
-			!roomState?.started ||
-			!sessionReady ||
-			roomState?.roundId ===
-				undefined ||
-			roomState?.roundId ===
-				null
-		) {
-			return;
-		}
-
-		/*
-		 * Avoid saving the tiny empty
-		 * state before the first piece
-		 * arrives.
-		 */
-		if (
-			!currentPiece &&
-			!gameOver
-		) {
-			return;
-		}
-
-		saveGameSession(
-			room,
-			playerId,
-			{
-				roundId:
-					roomState.roundId,
-
-				board,
-
-				score,
-
-				currentPiece,
-
-				nextPiece,
-
-				gameOver
-			}
-		);
-	}, [
-		room,
-		playerId,
-		roomState?.started,
-		roomState?.roundId,
-		sessionReady,
-		board,
-		score,
-		currentPiece,
-		nextPiece,
-		gameOver
-	]);
-
-	/*
-	 * =================================
-	 * COUNTDOWN
-	 * =================================
-	 */
-	useEffect(() => {
-		if (
-			!roomState?.started ||
-			!roomState?.countdownEndsAt
-		) {
-			setCountdown(
-				null
-			);
-
-			setGamePlayable(
-				false
-			);
-
-			return;
-		}
-
-		let goTimeout =
-			null;
-
-		const updateCountdown =
-			() => {
-				const remaining =
-					roomState.countdownEndsAt -
-					Date.now();
-
-				if (
-					remaining <= 0
-				) {
-					setCountdown(
-						"GO"
-					);
-
-					setGamePlayable(
-						true
-					);
-
-					goTimeout =
-						setTimeout(
-							() => {
-								setCountdown(
-									null
-								);
-							},
-							500
-						);
-
-					return true;
-				}
-
-				setCountdown(
-					Math.ceil(
-						remaining /
-							1000
-					)
-				);
-
-				setGamePlayable(
-					false
-				);
-
-				return false;
-			};
-
-		const finished =
-			updateCountdown();
-
-		if (finished) {
-			return () => {
-				if (
-					goTimeout
-				) {
-					clearTimeout(
-						goTimeout
-					);
-				}
-			};
-		}
-
-		const interval =
-			setInterval(
-				() => {
-					if (
-						updateCountdown()
-					) {
-						clearInterval(
-							interval
-						);
-					}
-				},
-				100
-			);
-
-		return () => {
-			clearInterval(
-				interval
-			);
-
-			if (
-				goTimeout
-			) {
-				clearTimeout(
-					goTimeout
-				);
-			}
-		};
-	}, [
-		roomState?.started,
-		roomState?.countdownEndsAt
-	]);
-
-	/*
-	 * GAME LOOP
-	 */
-	const {
-		hardDropCurrentPiece,
-		applyPenalty
-	} = useGameLoop({
-		room,
-
-		started:
-			gamePlayable,
-
-		board,
-
-		setBoard,
-
-		currentPiece,
-
-		setCurrentPiece,
-
-		gameOver,
-
-		setGameOver,
-
-		setScore
-	});
-
-	/*
-	 * CONTROLS
-	 */
-	useKeyboard({
-		started:
-			gamePlayable,
-
-		gameOver,
-
-		board,
-
-		currentPiece,
-
-		setCurrentPiece,
-
-		onHardDrop:
-			hardDropCurrentPiece
-	});
-
-	/*
-	 * MULTIPLAYER
-	 */
-	const {
-		opponents
-	} = useMultiplayer({
-		room,
-
-		started:
-			gamePlayable,
-
-		board,
-
-		roomState,
-
-		playerId
-	});
-
-	const isHost =
-		roomState?.hostId ===
-		playerId;
-
-	/*
-	 * GAME MODE
-	 */
-	const handleModeChange =
-		(mode) => {
-			if (
-				!isHost ||
-				roomState?.started ||
-				(
-					roomState?.players
-						?.length ??
-					0
-				) <= 1
-			) {
-				return;
-			}
-
-			socket.emit(
-				"game:mode",
-				{
-					room,
-					mode
-				}
-			);
-		};
-
-	/*
-	 * START
-	 */
-	const handleStart =
-		() => {
-			if (
-				!isHost ||
-				roomState?.started
-			) {
-				return;
-			}
-
-			setBoard(
-				createBoard()
-			);
-
-			setScore(
-				0
-			);
-
-			setGameOver(
-				false
-			);
-
-			setShowRanking(
-				false
-			);
-
-			setIsFading(
-				false
-			);
-
-			setIsFinishing(
-				false
-			);
-
-			setRanking(
-				[]
-			);
-
-			setFinishedMode(
-				null
-			);
-
-			setCountdown(
-				null
-			);
-
-			setGamePlayable(
-				false
-			);
-
-			setSessionReady(
-				false
-			);
-
-			setCurrentPiece(
-				null
-			);
-
-			setNextPiece(
-				null
-			);
-
-			initializedRoundRef.current =
-				null;
-
-			clearGameSession(
-				room,
-				playerId
-			);
-
-			socket.emit(
-				"game:start",
-				{
-					room
-				}
-			);
-		};
-
-	/*
-	 * =================================
-	 * FINAL RANKING
-	 * =================================
-	 */
-	useEffect(() => {
-		let fadeTimeout =
-			null;
-
-		let rankingTimeout =
-			null;
-
-		const onGameFinished =
-			(data) => {
-				console.log(
-					"FINAL RANKING:",
-					data.ranking
-				);
-
-				console.log(
-					"FINISHED MODE:",
-					data.mode
-				);
-
-				setRanking(
-					data.ranking ??
-						[]
-				);
-
-				setFinishedMode(
-					data.mode ??
-						null
-				);
-
-				setGamePlayable(
-					false
-				);
-
-				/*
-				 * The server round is over.
-				 * Snapshot is no longer
-				 * needed.
-				 */
-				clearGameSession(
-					room,
-					playerId
-				);
-
-				setSessionReady(
-					false
-				);
-
-				initializedRoundRef.current =
-					null;
-
-				/*
-				 * SOLO
-				 *
-				 * Keep final board and
-				 * GAME OVER visible.
-				 * No ranking screen.
-				 */
-				if (
-					data.mode ===
-					"solo"
-				) {
-					setIsFinishing(
-						false
-					);
-
-					setIsFading(
-						false
-					);
-
-					setShowRanking(
-						false
-					);
-
-					return;
-				}
-
-				/*
-				 * MULTIPLAYER
-				 */
-				setIsFinishing(
-					true
-				);
-
-				fadeTimeout =
-					setTimeout(
-						() => {
-							setIsFading(
-								true
-							);
-						},
-						2500
-					);
-
-				rankingTimeout =
-					setTimeout(
-						() => {
-							setShowRanking(
-								true
-							);
-
-							setIsFading(
-								false
-							);
-
-							setIsFinishing(
-								false
-							);
-						},
-						3000
-					);
-			};
-
-		socket.on(
-			"game:finished",
-			onGameFinished
-		);
-
-		return () => {
-			socket.off(
-				"game:finished",
-				onGameFinished
-			);
-
-			if (
-				fadeTimeout
-			) {
-				clearTimeout(
-					fadeTimeout
-				);
-			}
-
-			if (
-				rankingTimeout
-			) {
-				clearTimeout(
-					rankingTimeout
-				);
-			}
-		};
-	}, [
-		room,
-		playerId
-	]);
-
-	/*
-	 * RECEIVE PENALTY
-	 */
-	useEffect(() => {
-		const onPenaltyAdd =
-			({
-				count,
-				from
-			}) => {
-				console.log(
-					`Penalty received from ${from}:`,
-					count
-				);
-
-				applyPenalty(
-					count
-				);
-			};
-
-		socket.on(
-			"penalty:add",
-			onPenaltyAdd
-		);
-
-		return () => {
-			socket.off(
-				"penalty:add",
-				onPenaltyAdd
-			);
-		};
-	}, [
-		applyPenalty
-	]);
-
-	/*
-	 * PLAY AGAIN
-	 */
-	const handleRestart =
-		() => {
-			if (!isHost)
-				return;
-
-			socket.emit(
-				"game:restart",
-				{
-					room
-				}
-			);
-		};
-
-	/*
-	 * =================================
-	 * RETURN TO LOBBY
-	 * =================================
-	 */
-	useEffect(() => {
-		const onGameRestart =
-			() => {
-				setBoard(
-					createBoard()
-				);
-
-				setScore(
-					0
-				);
-
-				setGameOver(
-					false
-				);
-
-				setShowRanking(
-					false
-				);
-
-				setIsFading(
-					false
-				);
-
-				setIsFinishing(
-					false
-				);
-
-				setRanking(
-					[]
-				);
-
-				setFinishedMode(
-					null
-				);
-
-				setCountdown(
-					null
-				);
-
-				setGamePlayable(
-					false
-				);
-
-				setSessionReady(
-					false
-				);
-
-				setCurrentPiece(
-					null
-				);
-
-				setNextPiece(
-					null
-				);
-
-				initializedRoundRef.current =
-					null;
-
-				clearGameSession(
-					room,
-					playerId
-				);
-			};
-
-		socket.on(
-			"game:restart",
-			onGameRestart
-		);
-
-		return () => {
-			socket.off(
-				"game:restart",
-				onGameRestart
-			);
-		};
-	}, [
-		room,
-		playerId,
-		setCurrentPiece,
-		setNextPiece
-	]);
-
-	/*
-	 * Keep final board displayed
-	 * after server sets started=false.
-	 */
-	const showBoard =
-		Boolean(
-			roomState?.started ||
-			isFinishing ||
-			gameOver
+			player
 		);
 
 	return (
-		<main className="game-page">
-			<header className="game-header">
-				<h1 className="game-title">
-					<span>
-						RED
-					</span>{" "}
-					TETRIS
-				</h1>
+		<GameView
+			room={
+				room
+			}
 
-				<div className="room-badge">
-					ROOM //{" "}
-					{room.toUpperCase()}
-				</div>
-			</header>
+			player={
+				player
+			}
 
-			{showRanking &&
-			finishedMode !== "solo" ? (
-				<Ranking
-					players={
-						ranking
-					}
-
-					currentPlayerId={
-						playerId
-					}
-
-					isHost={
-						isHost
-					}
-
-					onRestart={
-						handleRestart
-					}
-
-					mode={
-						finishedMode
-					}
-				/>
-			) : (
-				<div className="game-layout">
-					<PlayerList
-						roomState={
-							roomState
-						}
-
-						player={
-							player
-						}
-
-						playerId={
-							playerId
-						}
-
-						error={
-							error
-						}
-
-						isHost={
-							isHost
-						}
-
-						onStart={
-							handleStart
-						}
-
-						mode={
-							roomState?.mode
-						}
-
-						onModeChange={
-							handleModeChange
-						}
-					/>
-
-					<GameStatus
-						started={
-							showBoard
-						}
-
-						finishing={
-							isFinishing
-						}
-
-						board={
-							board
-						}
-
-						currentPiece={
-							currentPiece
-						}
-
-						gameOver={
-							gameOver
-						}
-
-						score={
-							score
-						}
-
-						countdown={
-							countdown
-						}
-					/>
-
-					<div className="game-side-column">
-						<GamePanel
-							score={
-								score
-							}
-
-							nextPiece={
-								nextPiece
-							}
-						/>
-
-						{opponents.length >
-							0 && (
-							<div className="opponents-list">
-								{opponents.map(
-									(opponent) => (
-										<Opponent
-											key={
-												opponent.id
-											}
-
-											name={
-												opponent.name
-											}
-
-											spectrum={
-												opponent.spectrum
-											}
-										/>
-									)
-								)}
-							</div>
-						)}
-					</div>
-				</div>
-			)}
-
-			{isFading && (
-				<div className="ranking-fade-overlay" />
-			)}
-		</main>
+			game={
+				game
+			}
+		/>
 	);
 }
 
@@ -6435,9 +7031,7 @@ class Game {
 	 * representation of a player
 	 * for rankings.
 	 */
-	createPlayerSnapshot(
-		player
-	) {
+	createPlayerSnapshot(player) {
 		return {
 			id:
 				player.id,
@@ -6479,9 +7073,7 @@ class Game {
 	 * after removing them from the
 	 * active room.
 	 */
-	recordDepartedPlayer(
-		player
-	) {
+	recordDepartedPlayer(player) {
 		const alreadyRecorded =
 			this.departedPlayers.some(
 				(departed) =>
@@ -6564,10 +7156,19 @@ class Game {
 		);
 	}
 
+	/*
+	 * Generate one shuffled
+	 * seven-piece bag.
+	 */
 	generateBag() {
 		return Piece.generateBag();
 	}
 
+	/*
+	 * Generate the shared sequence
+	 * used by every player in
+	 * the current round.
+	 */
 	generateSequence(
 		bagCount = 20
 	) {
@@ -6588,6 +7189,13 @@ class Game {
 		}
 	}
 
+	/*
+	 * Game stores Piece instances
+	 * internally.
+	 *
+	 * The client only receives the
+	 * piece type, for example "T".
+	 */
 	getNextPiece(player) {
 		const piece =
 			this.pieces[
@@ -6599,16 +7207,18 @@ class Game {
 
 		player.pieceIndex++;
 
-		return piece;
+		return piece.type;
 	}
 
 	peekNextPiece(player) {
-		return (
+		const piece =
 			this.pieces[
 				player.pieceIndex
-			] ??
-			null
-		);
+			];
+
+		return piece
+			? piece.type
+			: null;
 	}
 }
 

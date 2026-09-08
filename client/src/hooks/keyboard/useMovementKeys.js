@@ -6,50 +6,19 @@ import {
 	moveLeft,
 	moveRight,
 	moveDown
-} from "../game/movement.js";
+} from "../../game/movement.js";
 
-import {
-	rotatePiece
-} from "../game/rotation.js";
-
-function useKeyboard({
-	started,
-	gameOver,
+function useMovementKeys({
+	enabled,
 	board,
-	currentPiece,
-	setCurrentPiece,
-	onHardDrop
+	setCurrentPiece
 }) {
 	useEffect(() => {
-		if (
-			!started ||
-			!currentPiece ||
-			gameOver
-		) {
+		if (!enabled)
 			return;
-		}
 
 		const handleKeyDown =
 			(event) => {
-				/*
-				 * Rotation and hard drop
-				 * happen only once per
-				 * physical key press.
-				 */
-				if (
-					event.repeat &&
-					(
-						event.code ===
-							"ArrowUp" ||
-						event.code ===
-							"Space"
-					)
-				) {
-					event.preventDefault();
-
-					return;
-				}
-
 				switch (
 					event.code
 				) {
@@ -104,34 +73,6 @@ function useKeyboard({
 
 						break;
 
-					case "ArrowUp":
-						event.preventDefault();
-
-						setCurrentPiece(
-							(piece) => {
-								if (!piece)
-									return piece;
-
-								return rotatePiece(
-									board,
-									piece
-								);
-							}
-						);
-
-						break;
-
-					case "Space":
-						event.preventDefault();
-
-						if (
-							onHardDrop
-						) {
-							onHardDrop();
-						}
-
-						break;
-
 					default:
 						break;
 				}
@@ -149,13 +90,10 @@ function useKeyboard({
 			);
 		};
 	}, [
-		started,
-		gameOver,
+		enabled,
 		board,
-		currentPiece,
-		setCurrentPiece,
-		onHardDrop
+		setCurrentPiece
 	]);
 }
 
-export default useKeyboard;
+export default useMovementKeys;

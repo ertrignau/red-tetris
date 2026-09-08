@@ -4,31 +4,32 @@ import {
 	useRef
 } from "react";
 
-import socket from "../socket/socket.js";
+import socket
+	from "../../socket/socket.js";
 
 import {
 	lockPiece
-} from "../game/board.js";
+} from "../../game/board.js";
 
 import {
 	hasCollision
-} from "../game/collision.js";
+} from "../../game/collision.js";
 
 import {
 	hardDrop
-} from "../game/drop.js";
+} from "../../game/drop.js";
 
 import {
 	clearLines
-} from "../game/lines.js";
+} from "../../game/lines.js";
 
 import {
 	calculateScore
-} from "../game/scoring.js";
+} from "../../game/scoring.js";
 
 import {
 	addPenaltyLines
-} from "../game/penalty.js";
+} from "../../game/penalty.js";
 
 function useGameLoop({
 	room,
