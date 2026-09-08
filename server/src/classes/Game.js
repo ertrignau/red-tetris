@@ -1,12 +1,4 @@
-const TETRIMINOS = [
-	"I",
-	"O",
-	"T",
-	"S",
-	"Z",
-	"J",
-	"L"
-];
+import Piece from "./Piece.js";
 
 class Game {
 	constructor(roomName) {
@@ -192,9 +184,7 @@ class Game {
 	 * representation of a player
 	 * for rankings.
 	 */
-	createPlayerSnapshot(
-		player
-	) {
+	createPlayerSnapshot(player) {
 		return {
 			id:
 				player.id,
@@ -236,9 +226,7 @@ class Game {
 	 * after removing them from the
 	 * active room.
 	 */
-	recordDepartedPlayer(
-		player
-	) {
+	recordDepartedPlayer(player) {
 		const alreadyRecorded =
 			this.departedPlayers.some(
 				(departed) =>
@@ -321,35 +309,19 @@ class Game {
 		);
 	}
 
+	/*
+	 * Generate one shuffled
+	 * seven-piece bag.
+	 */
 	generateBag() {
-		const bag = [
-			...TETRIMINOS
-		];
-
-		for (
-			let i =
-				bag.length - 1;
-			i > 0;
-			i--
-		) {
-			const j =
-				Math.floor(
-					Math.random() *
-						(i + 1)
-				);
-
-			[
-				bag[i],
-				bag[j]
-			] = [
-				bag[j],
-				bag[i]
-			];
-		}
-
-		return bag;
+		return Piece.generateBag();
 	}
 
+	/*
+	 * Generate the shared sequence
+	 * used by every player in
+	 * the current round.
+	 */
 	generateSequence(
 		bagCount = 20
 	) {
@@ -370,6 +342,13 @@ class Game {
 		}
 	}
 
+	/*
+	 * Game stores Piece instances
+	 * internally.
+	 *
+	 * The client only receives the
+	 * piece type, for example "T".
+	 */
 	getNextPiece(player) {
 		const piece =
 			this.pieces[
@@ -381,16 +360,18 @@ class Game {
 
 		player.pieceIndex++;
 
-		return piece;
+		return piece.type;
 	}
 
 	peekNextPiece(player) {
-		return (
+		const piece =
 			this.pieces[
 				player.pieceIndex
-			] ??
-			null
-		);
+			];
+
+		return piece
+			? piece.type
+			: null;
 	}
 }
 
