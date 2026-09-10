@@ -1,0 +1,32 @@
+services:
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+
+    container_name: red-tetris-prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: docker.io/grafana/grafana:latest
+    container_name: red-tetris-grafana
+
+    ports:
+      - "3001:3000"
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+    depends_on:
+      - prometheus
+
+volumes:
+  grafana-data:
