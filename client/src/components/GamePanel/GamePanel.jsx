@@ -1,9 +1,19 @@
-import PiecePreview from "../PiecePreview/PiecePreview.jsx";
+import {
+	useState
+} from "react";
+
+import PiecePreview
+	from "../PiecePreview/PiecePreview.jsx";
 
 function GamePanel({
 	score,
 	nextPiece
 }) {
+	const [
+		showControls,
+		setShowControls
+	] = useState(false);
+
 	return (
 		<aside className="game-panel stats-panel">
 			<div className="panel-header">
@@ -43,55 +53,85 @@ function GamePanel({
 
 			<div className="panel-divider"></div>
 
-			<h3 className="controls-title">
-				CONTROLS
-			</h3>
+			<button
+				type="button"
+				className={
+					showControls
+						? "controls-toggle controls-toggle-open"
+						: "controls-toggle"
+				}
+				onClick={() =>
+					setShowControls(
+						(current) =>
+							!current
+					)
+				}
+				aria-expanded={
+					showControls
+				}
+			>
+				<span className="controls-toggle-label">
+					CONTROLS
+				</span>
 
-			<div className="controls">
-				<div className="control-row">
-					<span>
-						Move
-					</span>
+				<span className="controls-toggle-icon">
+					⌄
+				</span>
+			</button>
 
-					<div>
+			<div
+				className={
+					showControls
+						? "controls-container controls-container-open"
+						: "controls-container"
+				}
+			>
+				<div className="controls">
+					<div className="control-row">
+						<span>
+							Move
+						</span>
+
+						<div>
+							<kbd>
+								←
+							</kbd>
+
+							<kbd>
+								→
+							</kbd>
+						</div>
+					</div>
+
+					<div className="control-row">
+						<span>
+							Rotate
+						</span>
+
 						<kbd>
-							←
-						</kbd>
-
-						<kbd>
-							→
+							↑
 						</kbd>
 					</div>
-				</div>
 
-				<div className="control-row">
-					<span>
-						Rotate
-					</span>
+					<div className="control-row">
+						<span>
+							Soft drop
+						</span>
 
-					<kbd>
-						↑
-					</kbd>
-				</div>
+						<kbd>
+							↓
+						</kbd>
+					</div>
 
-				<div className="control-row">
-					<span>
-						Soft drop
-					</span>
+					<div className="control-row">
+						<span>
+							Hard drop
+						</span>
 
-					<kbd>
-						↓
-					</kbd>
-				</div>
-
-				<div className="control-row">
-					<span>
-						Hard drop
-					</span>
-
-					<kbd>
-						SPACE
-					</kbd>
+						<kbd>
+							SPACE
+						</kbd>
+					</div>
 				</div>
 			</div>
 		</aside>

@@ -605,11 +605,18 @@ kbd {
 /* CONTROLS */
 /* ================================= */
 
-.controls-title {
-	margin:
-		0
-		0
-		12px;
+.controls-toggle {
+	width: 100%;
+
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
+	padding: 0;
+
+	border: 0;
+
+	background: transparent;
 
 	color: #65738a;
 
@@ -617,6 +624,74 @@ kbd {
 	font-weight: 800;
 
 	letter-spacing: 2px;
+
+	cursor: pointer;
+
+	transition:
+		color 0.2s ease;
+}
+
+.controls-toggle:hover {
+	color: #dce5f3;
+}
+
+.controls-toggle-label {
+	pointer-events: none;
+}
+
+.controls-toggle-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+
+	font-size: 16px;
+
+	transform: rotate(-90deg);
+
+	transition:
+		transform 0.25s ease,
+		color 0.2s ease;
+
+	color: #65738a;
+}
+
+.controls-toggle:hover
+.controls-toggle-icon {
+	color: #ff6477;
+}
+
+.controls-toggle-open
+.controls-toggle-icon {
+	transform: rotate(0deg);
+}
+
+.controls-container {
+	display: grid;
+
+	grid-template-rows: 0fr;
+
+	opacity: 0;
+
+	transform:
+		translateY(-5px);
+
+	transition:
+		grid-template-rows 0.28s ease,
+		opacity 0.2s ease,
+		transform 0.28s ease;
+}
+
+.controls-container-open {
+	grid-template-rows: 1fr;
+
+	opacity: 1;
+
+	transform:
+		translateY(0);
+}
+
+.controls-container > .controls {
+	overflow: hidden;
 }
 
 .controls {
@@ -624,6 +699,16 @@ kbd {
 	flex-direction: column;
 
 	gap: 12px;
+
+	padding-top: 0;
+
+	transition:
+		padding-top 0.28s ease;
+}
+
+.controls-container-open
+.controls {
+	padding-top: 14px;
 }
 
 .control-row {
@@ -646,31 +731,6 @@ kbd {
 	display: flex;
 
 	gap: 5px;
-}
-
-kbd {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-
-	min-width: 30px;
-	height: 26px;
-
-	padding: 0 7px;
-
-	border: 1px solid #35435b;
-	border-bottom-width: 2px;
-	border-radius: 5px;
-
-	background: #0a0e17;
-
-	color: #e5ebf5;
-
-	font-family: inherit;
-	font-size: 10px;
-	font-weight: 800;
-
-	white-space: nowrap;
 }
 
 /* ================================= */
@@ -967,9 +1027,14 @@ kbd {
 }
 
 .opponents-list {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+
+	grid-template-columns:
+		repeat(2, minmax(0, 1fr));
+
 	gap: 12px;
+
+	width: 100%;
 }
 
 .opponent {
@@ -1434,4 +1499,11 @@ kbd {
 		rgba(255, 255, 255, 0.02);
 
 	color: #495468;
+}
+
+.game-side-column {
+	display: flex;
+	flex-direction: column;
+
+	gap: 16px;
 }

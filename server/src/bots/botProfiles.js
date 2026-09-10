@@ -51,7 +51,7 @@ export const BOT_PROFILES = [
 	},
 
 	{
-		name: "PicalJean le desanuseur",
+		name: "Tron",
 		difficulty: "expert"
 	},
 	{

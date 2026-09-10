@@ -132,7 +132,7 @@ function useRanking({
 								true
 							);
 						},
-						2500
+						600
 					);
 
 				rankingTimeout =
@@ -150,7 +150,7 @@ function useRanking({
 								false
 							);
 						},
-						3000
+						1000
 					);
 			};
 
