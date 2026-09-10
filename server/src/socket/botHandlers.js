@@ -17,6 +17,33 @@ import {
 	MAX_PLAYERS
 } from "../../../shared/constants.js";
 
+import {
+	activeBots
+} from "../metrics/metrics.js";
+
+function updateActiveBots(
+	gameManager
+) {
+	let count = 0;
+
+	for (
+		const game
+		of gameManager.games.values()
+	) {
+		count +=
+			game.getPlayers()
+				.filter(
+					(player) =>
+						player.isBot
+				)
+				.length;
+	}
+
+	activeBots.set(
+		count
+	);
+}
+
 function getAvailableProfile(
 	game
 ) {
@@ -120,6 +147,10 @@ export function registerBotHandlers({
 				bot
 			);
 
+			updateActiveBots(
+				gameManager
+			);
+
 			emitRoomState(
 				io,
 				game
@@ -176,6 +207,10 @@ export function registerBotHandlers({
 
 			game.removePlayer(
 				bot.id
+			);
+
+			updateActiveBots(
+				gameManager
 			);
 
 			emitRoomState(

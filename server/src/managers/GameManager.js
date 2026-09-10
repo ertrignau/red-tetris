@@ -4,6 +4,10 @@ import {
 	MAX_PLAYERS
 } from "../../../shared/constants.js";
 
+import {
+	activeRooms
+} from "../metrics/metrics.js";
+
 class GameManager {
 	constructor() {
 		this.games =
@@ -21,6 +25,10 @@ class GameManager {
 		this.games.set(
 			roomName,
 			game
+		);
+
+		activeRooms.set(
+			this.games.size
 		);
 
 		return game;
@@ -57,6 +65,10 @@ class GameManager {
 	) {
 		this.games.delete(
 			roomName
+		);
+
+		activeRooms.set(
+			this.games.size
 		);
 	}
 

@@ -2,6 +2,11 @@ import {
 	emitRoomState
 } from "./roomState.js";
 
+import {
+	gamesFinished,
+	gameDuration
+} from "../metrics/metrics.js";
+
 export function buildRanking(
 	game,
 	players
@@ -40,8 +45,24 @@ export function finishGame(
 	game,
 	rankingPlayers
 ) {
+	if (!game.started)
+			return;
+		
 	game.started =
 		false;
+
+	gamesFinished.inc();
+
+	if (
+		game.startedAt
+	) {
+		gameDuration.observe(
+			(Date.now() - game.startedAt) / 1000
+		);
+
+		game.startedAt =
+			null;
+	}
 
 	game.countdownEndsAt =
 		null;

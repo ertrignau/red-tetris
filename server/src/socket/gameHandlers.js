@@ -6,6 +6,11 @@ import {
 	finishGame
 } from "../services/gameResult.js";
 
+import {
+	gamesStarted,
+	gameDuration
+} from "../metrics/metrics.js";
+
 export function registerGameHandlers({
 	io,
 	socket,
@@ -126,6 +131,11 @@ export function registerGameHandlers({
 
 			game.started =
 				true;
+
+			game.startedAt =
+				Date.now();
+
+			gamesStarted.inc();
 
 			game.countdownEndsAt =
 				Date.now() + 3000;

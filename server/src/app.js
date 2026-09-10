@@ -1,5 +1,9 @@
 import express from "express";
 
+import {
+	registry
+} from "./metrics/metrics.js";
+
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -23,6 +27,20 @@ app.get(
 		res.json({
 			status: "ok"
 		});
+	}
+);
+
+app.get(
+	"/metrics",
+	async (req, res) => {
+		res.set(
+			"Content-Type",
+			registry.contentType
+		);
+
+		res.end(
+			await registry.metrics()
+		);
 	}
 );
 

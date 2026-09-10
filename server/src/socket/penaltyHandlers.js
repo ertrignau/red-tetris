@@ -1,3 +1,7 @@
+import {
+	penaltiesSent
+} from "../metrics/metrics.js";
+
 export function registerPenaltyHandlers({
 	io,
 	socket,
@@ -47,12 +51,17 @@ export function registerPenaltyHandlers({
 					)
 				);
 
+
 			if (
 				penaltyCount ===
 				0
 			) {
 				return;
 			}
+
+			penaltiesSent.inc(
+				penaltyCount
+			);
 
 			for (
 				const target

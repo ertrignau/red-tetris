@@ -2,6 +2,10 @@ import {
 	removePlayerFromGame
 } from "../services/roomLifecycle.js";
 
+import {
+	connectedSockets
+} from "../metrics/metrics.js";
+
 const DISCONNECT_GRACE_MS =
 	3000;
 
@@ -14,6 +18,8 @@ export function registerDisconnectHandlers({
 	socket.on(
 		"disconnect",
 		() => {
+			connectedSockets.dec();
+
 			const room =
 				socket.data.room;
 

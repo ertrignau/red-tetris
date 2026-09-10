@@ -37,6 +37,10 @@ import {
 	registerBotHandlers
 } from "./botHandlers.js";
 
+import {
+	connectedSockets
+} from "../metrics/metrics.js"
+
 export function registerSocketHandlers({
 	io,
 	gameManager
@@ -52,6 +56,8 @@ export function registerSocketHandlers({
 	io.on(
 		"connection",
 		(socket) => {
+			connectedSockets.inc();
+			
 			console.log(
 				`Player connected: ${socket.id}`
 			);
